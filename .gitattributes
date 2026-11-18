@@ -1,0 +1,11 @@
+* text=auto
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.command text eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.icns binary
+*.ico binary
+*.ttf binary
+*.mp4 binary

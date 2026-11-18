@@ -1,0 +1,26 @@
+# Installed dependencies, build output and desktop profiles
+node_modules/
+/release/
+/.runtime/
+/output/
+RelayAtelierData/
+
+# Local recordings, machine reports and research. Keep the fixture runner and notice.
+/evidence/*
+!/evidence/scene-review/
+/evidence/scene-review/*
+!/evidence/scene-review/loom-study/
+/evidence/scene-review/loom-study/*
+!/evidence/scene-review/loom-study/check-browser.mjs
+/research/*
+!/research/CrommaCode-LICENSE.txt
+
+# Local environment, session logs and databases
+.env
+.env.*
+!.env.example
+*.jsonl
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
