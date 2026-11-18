@@ -11,7 +11,9 @@ node -e "console.log(typeof require('node:sqlite').DatabaseSync)"
 npm start
 ```
 
-SQLite 检查应输出 `function`。在独立窗口右下角打开“本地来源”，查看各来源的状态和最后事件时间。选择“全部会话”可同时观察多个 Agent。首次读入的历史可以填充计数和 Loom 铭牌，织梭会在收到可演出的事件后出发。Relay Atelier 本身无需为任何 Agent 安装 Hook。
+SQLite 检查应输出 `function`。在独立窗口右下角打开“本地来源”，查看各来源的状态和最后事件时间。选择“全部会话”可同时观察多个 Agent。首次读入的历史可以填充计数和 Loom 铭牌，织梭会在收到可演出的事件后出发。
+
+常规观察使用只读轮询。若希望缩短工具调用后的刷新等待，在桌面窗口打开 **本地来源 → Agent Hooks**，查看对应 Agent 的目标文件，点击安装。要撤销时，在同一行点击移除。浏览器版可读取已安装 Hook 的唤醒信号，安装与移除在桌面窗口完成。[支持的宿主、信任要求和恢复方法](HOOKS.md)
 
 | 模式 | 数据来自哪里 | 合适的观察方式 |
 | --- | --- | --- |
@@ -38,9 +40,9 @@ SQLite 检查应输出 `function`。在独立窗口右下角打开“本地来�
 
 | 内容 | 位置或保存方式 |
 | --- | --- |
-| Codex 会话 | `~/.codex/sessions/` 下的 JSONL |
-| Claude Code 会话 | `~/.claude/projects/` 下的 JSONL，包含受支持的子代理记录 |
-| OpenCode 数据库 | `~/.local/share/opencode/opencode.db`，以只读模式打开 |
+| Codex 会话 | `~/.codex/sessions/` 下的 JSONL；若设置 `CODEX_HOME`，从该目录的 `sessions/` 读取 |
+| Claude Code 会话 | `~/.claude/projects/` 下的 JSONL，包含受支持的子代理记录；可用 `CLAUDE_CONFIG_DIR` 指定配置根目录 |
+| OpenCode 数据库 | 默认 `~/.local/share/opencode/opencode.db`，以只读模式打开；若设置 `XDG_DATA_HOME`，使用其中的 `opencode/opencode.db` |
 | 源码桌面窗口资料 | 项目内 `.runtime/desktop/`，测试窗口另用 `.runtime/desktop-verification/`；可用 `RELAY_DATA_DIR` 指定独立目录 |
 | 浏览器模式 | 浏览器保存界面设置和本地访问 Cookie。终端打印的启动链接限本机使用。 |
 | 本地验收附件 | `evidence/` 和 `output/`。真实来源的截图可能含文件名和会话标识。可分享的固定样例在 [examples](../examples/)。 |

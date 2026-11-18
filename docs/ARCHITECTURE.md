@@ -6,6 +6,7 @@ Relay Atelier 有两个运行入口。Electron 主进程和本地 HTTP 服务各
 flowchart LR
   logs["Codex / Claude JSONL"] --> hub["SourceHub · 发现与增量读取"]
   db["OpenCode SQLite"] --> hub
+  hint["可选 Agent Hook · 本地文件时间戳"] -. 提前读取 .-> hub
   hub --> adapters["适配器 · 产生标准事件"]
   adapters --> buf["SourceHub · 快照与新增事件"]
   buf --> ipc["桌面 preload / IPC"]
@@ -39,10 +40,12 @@ flowchart LR
 ## 快照、实时通知与恢复
 
 - Hub 默认约每 1200 毫秒轮询一次，同一实例串行执行读取。首次读取或来源恢复时先填充历史和状态。已连接来源的新记录还需满足启动时间边界，才进入实时通知。
+- 默认桌面与 Web 来源还以 180 毫秒间隔检查空文件 `~/.relay-atelier/hooks/pulse` 的修改时间。已注册的 Hook 触发后，Hub 将刷新合并到串行读取中。单独构造带 `roots` 的 Hub 默认隔离真实信号，可通过 `pulseFile` 注入测试文件。任何绘图事件仍需通过来源适配器验证。
 - JSONL 按字节偏移读取，以完整行解码。文件轮转、截断和未写完的 UTF-8 行都有专门处理。默认每个 JSONL 来源最多选择最近修改的 64 个文件。
 - OpenCode 连接采用 `readOnly: true`。Hub 检查实际表结构，在 `PRAGMA data_version` 改变时通过读事务处理工具记录，包括可见的 WAL 更新。
 - Web 端用 `GET /api/snapshot` 获取初始状态，`GET /api/events` 收到 `tool` 和 `status` 两类 SSE 通知。重连时补读快照，应用也周期性重新同步。快照可恢复的范围取决于保留窗口。
 - Electron 的 `window.relay` 提供 `snapshot()`、`onEvent()`、`onStatus()`、`onVisibility()`、`pin()` 和 `windowInfo()`。进程内读源，页面只通过这些入口交互。
+- 桌面主进程另外向本地页面开放 `hooks.list()`、`hooks.install(id)` 和 `hooks.remove(id)`。实际配置路径和可执行内容均由主进程中的 provider 决定。Web 服务维持只读接口。[Hook 规范](HOOKS.md)
 
 ## 容量与时钟
 

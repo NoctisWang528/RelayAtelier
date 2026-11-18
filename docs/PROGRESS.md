@@ -1,4 +1,10 @@
-# 三场景对照修订 · 2026-11-18 晚
+# 双色飞轮图标与 Agent Hooks · 2026-11-18
+
+当前源码在桌面窗口和 macOS Dock 使用双色飞轮图标，ICNS 与 ICO 资源也已更新。桌面「本地来源」可以安装、修复、移除 Codex、Claude Code 和 OpenCode 的可选 Hook。普通会话监听继续只读运行。公开源码仓库为 [RelayAtelier](https://github.com/NoctisWang528/RelayAtelier)。
+
+本轮在 macOS 上通过 74 项自动测试（含 OpenCode 2.3.2 隔离宿主）、28 项浏览器回归、9 项源码窗口检查和 6 项 Hook 界面检查。OpenCode 的实际插件接口确认插件处于 active 状态。Codex 和 Claude Code 在独立设置文件中验证，Windows 资源和命令格式已检查，Windows 桌面与客户端执行仍待真机验证。[操作及验证入口](HOOKS.md)
+
+## 三场景对照修订 · 2026-11-18 晚
 
 本机原版已打开并观察了空闲 Loom 和 Factory。活动参照来自官方视频的逐帧取样。源码启动入口是 `scripts/start-source.command` 或 `npm start`。本轮的 DataFlow、Factory 和 Loom 运行结果见 [三场景报告](SCENE-REVIEW-2026-11-18.md)，证据目录为 `evidence/scene-review/`。
 

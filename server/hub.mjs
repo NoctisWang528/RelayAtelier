@@ -1,9 +1,11 @@
 import { EventEmitter } from 'node:events';
+import { watchFile, unwatchFile } from 'node:fs';
 import { open, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { agentId, normalizeClaude, normalizeCodex, normalizeOpenCode } from './adapters.mjs';
+import { getPulseFile } from './hook-signal.mjs';
 
 const SOURCES = ['codex', 'claude', 'opencode'];
 const MAX_LINE = 16 * 1024 * 1024;
@@ -119,14 +121,19 @@ async function jsonlFiles(root) {
   return { paths: dated.filter(Boolean).sort((a, b) => b.modified - a.modified || a.path.localeCompare(b.path)).slice(0, MAX_FILES).map(file => file.path), discovered: files.length, limited };
 }
 
+export function defaultSourceRoots(home = homedir(), env = process.env) {
+  return {
+    codex: join(env.CODEX_HOME || join(home, '.codex'), 'sessions'),
+    claude: join(env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'projects'),
+    opencode: join(env.XDG_DATA_HOME || join(home, '.local', 'share'), 'opencode', 'opencode.db'),
+  };
+}
+
 export class SourceHub extends EventEmitter {
-  constructor({ roots, pollMs = 1200 } = {}) {
+  constructor({ roots, pollMs = 1200, pulseFile = roots === undefined ? getPulseFile() : null } = {}) {
     super();
-    this.roots = roots === undefined ? {
-      codex: join(homedir(), '.codex', 'sessions'),
-      claude: join(homedir(), '.claude', 'projects'),
-      opencode: join(homedir(), '.local', 'share', 'opencode', 'opencode.db'),
-    } : { ...roots };
+    this.roots = roots === undefined ? defaultSourceRoots() : { ...roots };
+    this.pulseFile = pulseFile;
     this.pollMs = Number.isFinite(pollMs) ? Math.max(10, pollMs) : 1200;
     this.revision = 0;
     this._events = [];
@@ -151,12 +158,30 @@ export class SourceHub extends EventEmitter {
     if (this._running) {
       this._timer = setInterval(() => { void this._poll(); }, this.pollMs);
       this._timer.unref?.();
+      if (this.pulseFile) {
+        // Sampling mtime also coalesces bursts and survives deletion/re-creation.
+        this._onPulse = async (current, previous) => {
+          if (!current.isFile() || previous.mtimeMs === current.mtimeMs || this._refreshQueued) return;
+          this._refreshQueued = true;
+          try {
+            await this._busy;
+            await this._poll();
+          } finally {
+            this._refreshQueued = false;
+          }
+        };
+        watchFile(this.pulseFile, { persistent: false, interval: 180 }, this._onPulse);
+      }
     }
   }
 
   stop() {
     this._running = false;
     clearInterval(this._timer);
+    if (this._onPulse) {
+      unwatchFile(this.pulseFile, this._onPulse);
+      this._onPulse = null;
+    }
     this._closeDatabase();
   }
 

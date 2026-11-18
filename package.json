@@ -44,7 +44,7 @@
     "win": {
       "target": "zip",
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": false
+      "signExecutable": false
     },
     "extraMetadata": {
       "author": "Relay Atelier",

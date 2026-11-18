@@ -10,7 +10,7 @@ Relay Atelier 是在本机观察 Coding Agent 工具调用的桌面程序。继�
 
 ## 启动当前源码
 
-在项目根目录执行下列命令。本机验证环境为 macOS Apple silicon、Node.js 26.7.0 和 npm 11.19.0。OpenCode 适配器使用 Node.js 内置的 `node:sqlite`，依赖版本以 `package-lock.json` 为准。
+首次从公开仓库获取源码，执行 `git clone https://github.com/NoctisWang528/RelayAtelier.git`，然后进入 `RelayAtelier` 目录。已有本地副本可以直接在项目根目录执行下列命令。本机验证环境为 macOS Apple silicon、Node.js 26.7.0 和 npm 11.19.0。OpenCode 适配器使用 Node.js 内置的 `node:sqlite`，依赖版本以 `package-lock.json` 为准。
 
 ```sh
 npm ci
@@ -23,6 +23,8 @@ npm start
 - `scripts/start.command` 和 `scripts/start.bat` 会优先打开本机已有的旧包。项目中如有 `release/`，其中的 1.1.0 对应较早的视觉版本。当前源码启动入口见上。
 
 首次使用可以选 **Demo → Factory** 看取料、放料和出带，再切到 **Loom** 看同一批调用怎样织入布面。要观察自己的 Agent，切到 **Live**，在右下角“本地来源”查看连接详情和最近真实事件。历史排演用 **Replay**。[使用手册与故障排查](docs/USAGE.md)
+
+需要更快看到工具活动时，在桌面窗口打开 **本地来源 → Agent Hooks**，选择对应 Agent 安装。回调唤醒本机会话读取，事件配对、失败判定和最近事件时间仍取自会话记录。面板也提供移除入口。[Hook 安装、恢复与扩展](docs/HOOKS.md)
 
 ## 场景
 
@@ -56,6 +58,7 @@ npm start
 | 安装、选会话、处理空闲与连接问题 | [使用手册](docs/USAGE.md) |
 | 理解只读来源、窗口通信、调度与渲染 | [架构说明](docs/ARCHITECTURE.md) |
 | 编写适配器、判断何时可以报告成功 | [事件规范](docs/EVENTS.md) |
+| 安装可选 Hook 或接入新的 Agent | [Hook 规范](docs/HOOKS.md) |
 | 开发、运行测试、提交本地改动 | [开发与贡献指南](CONTRIBUTING.md) |
 | 查找各场景的研究与历次验证 | [文档索引](docs/README.md) |
 

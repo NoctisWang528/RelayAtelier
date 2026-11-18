@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { request } from 'node:http';
 import { SourceHub, JsonlTail } from '../server/hub.mjs';
+import { getPulseFile, prepareHookSignal } from '../server/hook-signal.mjs';
+import { utimes } from 'node:fs/promises';
 import { startServer } from '../server/web.mjs';
 import { EventStore } from '../src/state.mjs';
 
@@ -31,6 +33,45 @@ async function eventually(predicate) {
     await new Promise(resolve => setTimeout(resolve, 10));
   }
 }
+
+test('a local hook pulse wakes the source reader and cannot fabricate or double-count a call', async t => {
+  const {dir,hub} = await fixture(t);
+  const transcript = join(dir, 'session-a.jsonl');
+  hub.roots.claude = dir;
+  hub.pulseFile = getPulseFile(dir);
+  await writeFile(transcript, line(use('history', '2020-01-01T00:00:00Z')));
+  const events = [];
+  hub.on('event', event => events.push(event));
+  await hub.start();
+  await assert.rejects(readFile(hub.pulseFile), {code:'ENOENT'});
+  const signal = await prepareHookSignal(dir);
+  await appendFile(transcript, line(use('new')) + line(result('new')));
+  const pulse = async offset => {
+    const time = new Date(Date.now() + offset);
+    await utimes(signal, time, time);
+  };
+  await pulse(1000);
+  await eventually(() => events.length === 2);
+  assert.equal(new Set(events.map(e => e.callId)).size, 1);
+  assert.deepEqual(events.map(e => e.status), ['started','completed']);
+  await pulse(2000);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(events.length, 2);
+  assert.equal((await readFile(signal)).length, 0);
+  hub.stop();
+  await appendFile(transcript, line(use('after-stop')));
+  await pulse(3000);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(events.length, 2);
+});
+
+test('installer signal initialization preserves pre-existing nonempty files', async t => {
+  const {dir} = await fixture(t);
+  const file = await prepareHookSignal(dir);
+  await writeFile(file, 'keep');
+  await assert.rejects(prepareHookSignal(dir), /冲突/);
+  assert.equal(await readFile(file,'utf8'), 'keep');
+});
 
 test('SourceHub seeds history silently, emits only new transitions and exposes detached snapshots', async t => {
   const { dir, hub } = await fixture(t);

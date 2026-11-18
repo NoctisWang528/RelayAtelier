@@ -35,6 +35,7 @@ npm test
 | `npm run capture:scenes` | 空来源和明确标记的 Demo；默认写入 `evidence/scenes/` | 生成横屏与竖屏截图及分时运动帧。 |
 | `node scripts/record-scene-review.mjs` | 相同的 48 次合成调用；默认写入 `evidence/scene-review/replay/` | 通过正常 Replay 界面录制三个场景，保存 WebM、截图和结果 JSON。 |
 | `node scripts/verify-dataflow.mjs` | 独立样例 | 检查名称、主题、方向、颜色和三个高度下的真实像素。 |
+| `node scripts/verify-hooks.mjs` | 独立来源与宿主配置目录 | 用 Electron 和 Chromium 检查安装、修复、移除、冲突、重复打开及 Web 只读行为。 |
 | `node evidence/scene-review/loom-study/check-browser.mjs` | 内存样例，输出在脚本所在目录 | 检查历史铭牌、悬停、重播、暂停、减少动态效果及晚到结果的针脚位置。 |
 
 完整浏览器及桌面脚本读取 `RELAY_VERIFY_DIR`，通用截图脚本读取 `RELAY_CAPTURE_DIR`、`RELAY_SCENES`，三场景录像脚本读取 `RELAY_RECORD_DIR`。需要保留上一轮结果时，将输出指向新的项目内目录。例子：
@@ -55,6 +56,8 @@ RELAY_SCENES=loom,factory RELAY_CAPTURE_DIR=output/loom-factory npm run capture:
 - **动画场景**。从 `src/scenes/` 下对应模块入手，给同一个逻辑调用保存稳定的演出记录。先检查空闲，再覆盖开始、结果、连续调用和小窗口。比较画面时写明模式、画布尺寸和事件序列。不同输入的原片与回放可以比较构图及运动规律，不能证明逐帧同步。
 - **共享界面**。场景名称、导航、键位和来源模式在 `src/app.mjs`，样式在 `src/style.css`。变更场景名称时同时检查按钮、状态栏、读屏名称以及已保存的场景标识。
 - **桌面与浏览器两种入口**。前端新增数据需求须兼顾 preload 和本地 Web 服务。真实来源只经后端标准化后进入窗口。[运行架构](docs/ARCHITECTURE.md)
+- **新增 Agent Hook**。在 `server/hooks/providers.mjs` 中登记宿主 ID、配置目标与读写规则。使用独立配置目录测试与已有 Hook 共存、并发安装和精确撤销。[Hook 规范](docs/HOOKS.md)
+- **桌面图标**。以 `assets/logo/relay-atelier.png` 为 1024 像素原稿。源码窗口和 macOS Dock 使用 `assets/icon.png`，macOS 构建读取 `assets/icon.icns`，Windows 构建读取 `assets/icon.ico`。更换图标时一并校验 `assets/Relay.iconset/` 的普通与 Retina 尺寸，以及小尺寸 ICO 是否可辨。
 
 ## 本地 Git 工作方式
 
