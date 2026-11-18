@@ -1,3 +1,5 @@
+<img src="assets/logo/relay-atelier.svg" alt="Relay Atelier 双色飞轮图标" width="96" height="96">
+
 # Relay Atelier
 
 Relay Atelier 是在本机观察 Coding Agent 工具调用的桌面程序。继续在原来的终端或客户端使用 Codex、Claude Code 或 OpenCode，观察器会把会话里的开始、等待、完成和失败转成机械动作。没有会话时，可以直接切到 Demo。
