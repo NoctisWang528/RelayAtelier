@@ -59,6 +59,10 @@ RELAY_SCENES=loom,factory RELAY_CAPTURE_DIR=output/loom-factory npm run capture:
 - **新增 Agent Hook**。在 `server/hooks/providers.mjs` 中登记宿主 ID、配置目标与读写规则。使用独立配置目录测试与已有 Hook 共存、并发安装和精确撤销。[Hook 规范](docs/HOOKS.md)
 - **桌面图标**。以 `assets/logo/relay-atelier.png` 为 1024 像素原稿。源码窗口和 macOS Dock 使用 `assets/icon.png`，macOS 构建读取 `assets/icon.icns`，Windows 构建读取 `assets/icon.ico`。更换图标时一并校验 `assets/Relay.iconset/` 的普通与 Retina 尺寸，以及小尺寸 ICO 是否可辨。
 
+## 版本与发布
+
+本地构建使用应用版本和 Git 提交标识。公开发行单独按主版本、次版本和修订号递增。准备桌面发布时，保留各平台验收过的压缩包及摘要，按规则创建标签、双语说明和附件。[版本规则与发布步骤](docs/VERSIONING.md)
+
 ## 本地 Git 工作方式
 
 主分支为 `main`。仓库注册在原项目目录，产品显示名称为 **Relay Atelier**，npm 包标识为 `relay-atelier`。新改动可以在独立分支完成。下面以一次 Loom 色块修正为例，按实际文件和测试结果调整。
