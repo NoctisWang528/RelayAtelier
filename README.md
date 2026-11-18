@@ -1,73 +1,60 @@
 # Relay Atelier
 
-独立、仅在本机运行的 Coding Agent 动效观察器。按提供的 CrommaCode 画面重做了瓷白机械场景，保留大尺寸场景空间，新增 DataFlow 节点场景。它是独立绘制的程序，不是 CrommaCode 原程序，也不声称逐像素或逐帧完全一致。
+Relay Atelier 是在本机观察 Coding Agent 工具调用的桌面程序。继续在原来的终端或客户端使用 Codex、Claude Code 或 OpenCode，观察器会把会话里的开始、等待、完成和失败转成机械动作。没有会话时，可以直接切到 Demo。
 
-## 当前源码优化版（2026-11-18）
+[![同一份样例依次驱动 Factory 的货箱、Loom 的织物和 DataFlow 的节点](examples/replay-preview.jpg)](examples/three-scenes.mp4)
 
-Mac 双击 **`scripts/start-source.command`**，或在项目目录执行 **`npm start`**。最新一轮修改了 DataFlow 配色、Factory 货物和 Loom 工具铭牌。运行证据与复现方法见 [三场景修订报告](docs/SCENE-REVIEW-2026-11-18.md)。
+[观看 50 秒运行录像](examples/three-scenes.mp4)。Factory、Loom 和 DataFlow 依次回放同一份合成样例，每次都有 48 次调用、4 个 Agent。可以直接播放这段录像，也可以按开发指南在本机重现。
 
-`release/` 和 `scripts/start.command` 对应早先的 1.1.0 版本。上一轮的八场景对照保存在 [源码优化记录](docs/REFINEMENT-2026-11-18.md)。
+## 启动当前源码
 
-## 之前的打包版本
+在项目根目录执行下列命令。本机验证环境为 macOS Apple silicon、Node.js 26.7.0 和 npm 11.19.0。OpenCode 适配器使用 Node.js 内置的 `node:sqlite`，依赖版本以 `package-lock.json` 为准。
 
-- **本机 Mac Apple silicon**：双击 `scripts/start.command`，或直接打开 `release/mac-arm64/Relay Atelier.app`。
-- **Windows x64**：解压 `release/Relay Atelier-1.1.0-win.zip`，双击 `Relay Atelier.exe`。已在 Mac 交叉打包，尚未在 Windows 真机运行验证。
-- 源码启动：在本目录执行 `npm ci`，然后 `npm start`。使用支持 `node:sqlite` 的 Node 版本；本机测试版本与 Electron 内置版本见 `docs/SOURCES.md`。
-- 浏览器备用版本：`npm run web`，打开终端打印的完整本地链接。默认监听 `127.0.0.1:4317`；端口占用时自动选择空闲端口。链接包含一次启动的本地访问令牌；程序没有公网服务。
+```sh
+npm ci
+npm start
+```
 
-Mac 包未经 Apple 签名或公证。当前机器已实际运行验证；其他机器的系统信任要求仍由系统处理。
+- **已用 npm start 初始化 Electron 的 Mac 工作目录**可直接在 Finder 双击 [源码启动器](scripts/start-source.command)。
+- **Windows 源码**使用相同的两条 npm 命令。当前源码窗口已在 macOS 验证，Windows 真机运行仍待验证。
+- **浏览器入口**为 `npm run web`。打开终端打印的完整本地链接。按 Ctrl+C 停止。默认端口为 4317，遇到占用自动选择空闲端口。
+- `scripts/start.command` 和 `scripts/start.bat` 会优先打开本机已有的旧包。项目中如有 `release/`，其中的 1.1.0 对应较早的视觉版本。当前源码启动入口见上。
 
-## 使用
-
-保持在原来的终端或客户端使用 Codex、Claude 或 OpenCode。默认 **Live** 自动只读发现本地来源；底部显示连接情况和最近真实事件时间，可以筛选会话。应用不执行模型、命令、调度或 Git 操作。
-
-- **Live**：真实来源。启动前历史只填充状态，不伪装成刚发生的动画。日志无明确结果时标为未知；超过五分钟仍无结果的调用显示“未知·超时”。
-- **Replay**：回放读到的历史事件，可重播及调节速度。长间隔压缩到最多 1.4 秒，不能作为真实耗时测量。
-- **Demo**：明确标记的模拟工具调用。包含并发、等待、失败和未知结果。
-
-顶部切换 Westworld、Loom、Factory、Chips、Rhythm、Slots、Roulette、DataFlow。键盘 **1—8** 切场景，**Space** 暂停演出，**F** 隐藏底部信息区以放大场景。右下角图钉切换桌面置顶。暂停时仍监听来源；不丢弃共享会话状态。不可见/最小化时停绘，空闲降至约 12 fps，系统减少动态效果偏好可用。
-
-筹码、倍率、节奏轨道和附加转轮都是事件演出，不表示 Agent 质量，不涉及投注或奖励。原版广告位改成真实工具状态窗，没有账号或广告网络。
+首次使用可以选 **Demo → Factory** 看取料、放料和出带，再切到 **Loom** 看同一批调用怎样织入布面。要观察自己的 Agent，切到 **Live**，在右下角“本地来源”查看连接详情和最近真实事件。历史排演用 **Replay**。[使用手册与故障排查](docs/USAGE.md)
 
 ## 场景
 
-| 场景 | 实际动画 |
+| 场景 | 一次工具调用在画面上的表现 |
 | --- | --- |
-| Westworld | 大幅裁切的精密转盘、阻尼定位、刻度及紧固件、能量线路往返脉冲、玻璃容器响应 |
-| Factory | 侧向滚道进料，双爪抓取并转移到主带。封箱带、标签和箱体跟随带面透视，连续调用单列排队，结果更新原箱 |
-| Chips | 发牌轨道、弹性落牌、卡堆、筹码和事件倍率，结果更新原卡 |
-| Rhythm | 透视多轨标记、弧形判定线、到达反馈，晚到结果更新同一事件 |
-| Loom | 16 块工具铭牌与经线分组对应，悬停可读全名。真实历史只填铭牌，演出中的每次调用织入一行，结果更新原针脚 |
-| DataFlow | 瓷白核心与工具节点、出发/返回拖尾、错误红色、观察到子代理关系时生成分支 |
-| Slots / Roulette | 按额外截图补充的两种机械演出：多列停轮与联动气罐；轨道入球与减速落槽。均使用工具符号 |
+| Westworld | 转盘带阻尼地定位到工具扇区，指示灯、管线和玻璃容器随事件响应。 |
+| Loom | 16 块铭牌标识工具，织梭落下一行织物。悬停可见完整名称，结果更新原针脚。 |
+| Factory | 双爪从侧向滚道取箱，转移到主带。箱体和带板共用位移，连续调用形成单列队伍。 |
+| Chips | 工具卡从牌靴送出、落桌，后续状态更新原卡和筹码反馈。 |
+| Rhythm | 工具标记沿各自轨道抵达判定线，触发光效。计分和连击仅描述演出。 |
+| Slots | 工具转轮按调用顺序停轮，气压装置响应。 |
+| Roulette | 小球入轨，转轮减速落槽并显示工具反馈。 |
+| DataFlow | 核心与工具节点之间传送脉冲，等待在节点停留，失败以红色返回。实际父子关系驱动分支。 |
 
-## 真实接入范围
+## 数据与验证
 
-Codex 已捕获本次开发产生的实时新事件，包含并发子代理。Claude 和 OpenCode 已解析本机真实历史会话，并通过脱敏样例验证新增、配对及恢复；**未完成新的真实 Claude/OpenCode 工具调用验证**。发现来源/读到历史不等于验证了正在工作的 Agent。
+运行所需的界面、字体和图形都在本地。桌面端通过 IPC 收取数据，浏览器版只监听 `127.0.0.1`。适配器只读会话文件或数据库，传给画面的是经过筛选的元数据。文件名、域名、工具名和会话标识仍可能涉及项目隐私。[数据来源和读取边界](docs/SOURCES.md)
 
-应用自身不依赖 Hook。为观察原版，按用户额外授权，通过 CrommaCode 的官方自动接入新增了 `~/.config/opencode/plugins/bees-hive.js`；原 OpenCode 配置和其他插件未修改。指定 `magpie/auto/deepseek-v4.1-flash` 的一次任务无输出、无工具事件，约三分钟后取消，没有重试。安装记录在 `evidence/hook-install-report.json`。
+| 来源 | 当前验证范围 |
+| --- | --- |
+| Codex | 已在开发机上观察到新增真实工具事件与并发子代理。 |
+| Claude Code | 已解析本机真实历史，新增调用、配对和恢复由脱敏样例验证。 |
+| OpenCode | 已只读解析本机真实 SQLite 历史，增量状态变化由数据库样例验证。 |
 
-要撤销这次额外 Hook，执行 `node scripts/disable-cromma-hook.mjs`。脚本校验安装文件哈希后将它移至本项目 `.runtime/hook-backup/`，可逆且不覆盖原配置；文件若已被后续更新会拒绝操作。重启 OpenCode 后生效。再从 CrommaCode 内启动 OpenCode，原版可能重新安装 Hook。
+最近一次三场景修订通过 59 项 Node 测试、28 项浏览器检查和 9 项 macOS 源码窗口检查。源码独立重建了 CrommaCode Game View 的机械场景，箱体材质、部分织纹和运动时序仍有差异。当前保留源码运行方式。[三场景验证记录](docs/SCENE-REVIEW-2026-11-18.md) · [视觉验收记录](design-qa.md)
 
-## 验证及证据
+## 项目文档
 
-- `npm test`：事件标准化、去重、并发、只读数据库、重连、本地 HTTP 边界及队列。
-- `npm run test:ui`：实际浏览器动画、并发、1,000 次调用积压、来源/传输中断恢复、缩放、切场景、暂停、空闲、等待及结果配对。
-- `npm run verify:desktop`：实际 Electron 桌面、置顶、最小化停绘、缩放、安全设置。
-- `npm run capture:scenes`：生成八种场景的纵/横截图、运动序列与视频。截图标注 Demo；不包含私有会话内容。
-- `npm run verify:live`：45 秒本机只读观察，不启动付费任务。
+| 要完成的事情 | 入口 |
+| --- | --- |
+| 安装、选会话、处理空闲与连接问题 | [使用手册](docs/USAGE.md) |
+| 理解只读来源、窗口通信、调度与渲染 | [架构说明](docs/ARCHITECTURE.md) |
+| 编写适配器、判断何时可以报告成功 | [事件规范](docs/EVENTS.md) |
+| 开发、运行测试、提交本地改动 | [开发与贡献指南](CONTRIBUTING.md) |
+| 查找各场景的研究与历次验证 | [文档索引](docs/README.md) |
 
-浏览器测试首次需要：`PLAYWRIGHT_BROWSERS_PATH="$PWD/.runtime/playwright" npx playwright install chromium`。Windows PowerShell 可先设置 `$env:PLAYWRIGHT_BROWSERS_PATH="$PWD/.runtime/playwright"`。
-
-本轮源码结果参见 `docs/REFINEMENT-2026-11-18.md`、`design-qa.md` 和 `evidence/refinement/`。`docs/VERIFICATION.md`、`evidence/scenes/`、`evidence/desktop-report.json` 保留的是较早打包版本的记录。
-
-## 已知边界
-
-- 视觉结构和运动按公开视频、本机观察及截图独立重建；没有原版源码和精确运动参数，不作“一模一样”的结论。广告画面、模型品牌标志、账号功能不属于本程序。
-- Windows 仅完成打包，未有 Windows 真机验收；Mac Intel 未生成专用包。
-- 历史窗口、监听文件数量和视觉队列有限，高密度调用会折叠演出，并显示折叠数；状态不会因切场景清空。读到的历史不是完整账本。
-- JSONL 结束记录缺失、数据库轮询间的短暂状态可能无法恢复。后端长期去重/配对索引会增长；未证明数月连续运行时常量内存。具体限制见 `docs/SOURCES.md`。
-
-## 项目数据
-
-源码、依赖、构建、测试临时文件都留在本目录。源码运行缓存位于 `.runtime/`；Mac 包运行缓存位于应用所在目录的 `RelayAtelierData/`。测试只向项目内的独立脱敏样例写入。运行资源、字体均本地加载，没有遥测和远程请求。`.runtime/hook-backup/` 是原配置备份，请保留在本机，不随源码分享。
+本项目源码采用 [MIT 许可证](LICENSE)。字体和参考资料的来源及许可分别列在 [第三方声明](THIRD_PARTY_NOTICES.md)。

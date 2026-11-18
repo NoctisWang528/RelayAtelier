@@ -1,10 +1,12 @@
 # DataFlow、Factory 与 Loom 的源码修订
 
+> 本机附件的路径相对于本文，原始图片和运行报告保存在开发机。随 Git 仓库提供的影像见[三场景回放](../examples/three-scenes.mp4)。
+
 本报告记录 11 月 18 日晚的三场景修订。Mac 上双击 `scripts/start-source.command`，或从项目目录执行 `npm start`。两个入口都直接运行当前源码。此前的 1.1.0 安装包属于早先版本。
 
-[播放三场景实录](../evidence/scene-review/replay/three-scenes.mp4) · [查看局部对照](../evidence/scene-review/detail-comparison.jpg) · [查看桌面截图](../evidence/scene-review/desktop/desktop-loom.png)
+[播放三场景实录](../examples/three-scenes.mp4) · 查看局部对照（`../evidence/scene-review/detail-comparison.jpg`） · 查看桌面截图（`../evidence/scene-review/desktop/desktop-loom.png`）
 
-录像长 50.48 秒，画幅 1440 × 940。Factory、Loom、DataFlow 按顺序回放相同的样例，MP4 的 1262 帧已全部解码检查。[录像检查结果](../evidence/scene-review/replay/video-check.json)
+录像长 50.48 秒，画幅 1440 × 940。Factory、Loom、DataFlow 按顺序回放相同的样例，MP4 的 1262 帧已全部解码检查。录像检查结果（`../evidence/scene-review/replay/video-check.json`）
 
 ## 对照来源
 
@@ -22,13 +24,13 @@
 
 旧画面中，货物和传送带各自推进，货箱的朝向和贴签也没有跟随斜向带面。现在侧向滚道一次只把一箱送到取料位。两片夹爪在箱体两侧闭合，抬起、转移并松开。箱子放上主带后与带板共用位移，近侧护栏遮在箱体前。原片约 3 秒处的小箱和高箱有明显大小差异，因此这里按工具类别选择尺寸，并绘制顺着箱盖延伸的封带和下游端面的纸签。原片能支持这段运动和外观，工具类别与具体尺寸的对应关系是本实现的选择。
 
-在 620 逻辑高度下采样取料、转移和放料，肘部最高点与顶部导航有约 17.5 单位间距。晚到结果更新同一箱的状态，超过可见容量后保留调用标识，避免重复发货。[取料连续帧](../evidence/scene-review/factory-study/early-grip.jpg) · [货箱细节对照](../evidence/scene-review/factory-study/factory-cargo-study.jpg)
+在 620 逻辑高度下采样取料、转移和放料，肘部最高点与顶部导航有约 17.5 单位间距。晚到结果更新同一箱的状态，超过可见容量后保留调用标识，避免重复发货。取料连续帧（`../evidence/scene-review/factory-study/early-grip.jpg`） · 货箱细节对照（`../evidence/scene-review/factory-study/factory-cargo-study.jpg`）
 
 ## Loom
 
 官方活动帧里能辨认 15 个位置的完整工具名。短名如 `GIT` 和 `LSP` 直接排印，长名如 `WEBFETCH` 和 `READ` 在铭牌上显示为 `…CH` 和 `…AD`。当前织梭对应的铭牌加深边框，左侧仪表显示全名。鼠标停在有字的铭牌上，可以读取该位置所有工具的完整名称。第七个位置在片中只看清 `…NT`，本实现用它优先容纳片中未识别的工具，如 Shell。
 
-Live 打开已有会话时，从最近实际出现的工具填入最多 16 块铭牌。此时队列和织物都从零开始。空来源保留 16 条色标。Replay 从第一条回放事件开始着色。工具、铭牌、经线分组和织物行使用同一位置，状态回报更新原针脚。按工具改变长浮线、短横和交织的间隔，等待与未知会在对应区域露出底部经线。常规一次织梭约 0.30 秒，参考了片中约 0.17–0.37 秒的选中间隔。[逐帧铭牌](../evidence/scene-review/loom-study/plaque-strips.png) · [织纹放大对照](../evidence/scene-review/loom-study/cloth-comparison.png)
+Live 打开已有会话时，从最近实际出现的工具填入最多 16 块铭牌。此时队列和织物都从零开始。空来源保留 16 条色标。Replay 从第一条回放事件开始着色。工具、铭牌、经线分组和织物行使用同一位置，状态回报更新原针脚。按工具改变长浮线、短横和交织的间隔，等待与未知会在对应区域露出底部经线。常规一次织梭约 0.30 秒，参考了片中约 0.17–0.37 秒的选中间隔。逐帧铭牌（`../evidence/scene-review/loom-study/plaque-strips.png`） · 织纹放大对照（`../evidence/scene-review/loom-study/cloth-comparison.png`）
 
 ## 运行结果
 
@@ -41,7 +43,7 @@ Live 打开已有会话时，从最近实际出现的工具填入最多 16 块�
 | DataFlow | 在横屏窗口对两种主题做了逐项比较。Factory 与 DataFlow 的纸底测试区平均 RGB 均为 (251, 249, 244)。三个高度、五种状态共 15 组信号像素检查通过。 |
 | 三场景受控回放 | 每个场景同一份 48 次调用、96 次状态过渡。来源样例含四个 Agent，最终 41 次完成、4 次失败、3 次未知。每个场景均演出全部 96 次过渡。 |
 
-[单元测试](../evidence/scene-review/unit-tests.tap) · [完整浏览器结果](../evidence/scene-review/ui/ui-report.json) · [桌面结果](../evidence/scene-review/desktop/desktop-report.json) · [Loom 专项结果](../evidence/scene-review/loom-study/browser-results.json) · [DataFlow 像素结果](../evidence/scene-review/dataflow/report.json)
+单元测试（`../evidence/scene-review/unit-tests.tap`） · 完整浏览器结果（`../evidence/scene-review/ui/ui-report.json`） · 桌面结果（`../evidence/scene-review/desktop/desktop-report.json`） · Loom 专项结果（`../evidence/scene-review/loom-study/browser-results.json`） · DataFlow 像素结果（`../evidence/scene-review/dataflow/report.json`）
 
 ## 对齐程度与真实来源
 
