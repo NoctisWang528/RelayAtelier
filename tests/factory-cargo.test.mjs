@@ -81,6 +81,7 @@ describe('Factory Canvas', () => {
         };
         ctx.fillText = (text,...args) => {
           if (text.startsWith('×')) parts.push({kind:'count',text});
+          if (text.startsWith('#') && ctx.getTransform().b<0) parts.push({kind:'frontId',text,font:parseFloat(ctx.font)});
           fillText(text,...args);
         };
         const fill = ctx.fill.bind(ctx), stroke = ctx.stroke.bind(ctx), ellipse = ctx.ellipse.bind(ctx);
@@ -114,6 +115,27 @@ describe('Factory Canvas', () => {
           ink = [...ctx.getImageData(Math.round(x),Math.round(y),1,1).data];
         }
         return {parts,joints,slats,ink};
+      };
+      // Request the CPU raster path for repeatable pixel comparisons across complete frames.
+      window.pixelContext = height => new OffscreenCanvas(1200,height).getContext('2d',{willReadFrequently:true});
+      window.renderCanvas = (scene,t,height,ctx=pixelContext(height)) => {
+        scene.render(ctx,t,0,{viewport:{height}});
+        return ctx;
+      };
+      // Compare only pixels inside the projected face, after the rails and other boxes are painted.
+      window.changedPixels = (before,after,quad) => {
+        const left=Math.floor(Math.min(...quad.map(p=>p.x))), top=Math.floor(Math.min(...quad.map(p=>p.y)));
+        const w=Math.ceil(Math.max(...quad.map(p=>p.x)))-left, h=Math.ceil(Math.max(...quad.map(p=>p.y)))-top;
+        const a=before.getImageData(left,top,w,h).data, b=after.getImageData(left,top,w,h).data;
+        const path=new Path2D();
+        quad.forEach(({x,y},i)=>i ? path.lineTo(x,y) : path.moveTo(x,y));
+        path.closePath();
+        let count=0;
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+          const i=(y*w+x)*4;
+          if(Math.abs(a[i]-b[i])>30 && before.isPointInPath(path,left+x+.5,top+y+.5)) count++;
+        }
+        return count;
       };
     });
   });
@@ -220,6 +242,103 @@ describe('Factory Canvas', () => {
     assert.equal(labels.length,1);
     const [a,b,c] = labels[0].points;
     assert.ok(b.x>a.x && b.y<a.y && c.y>b.y && Math.abs(c.x-b.x)<.001);
+  });
+
+  it('prints the call ID and tool on a full-size sticker and a tool on each packed carton', async () => {
+    const samples=await page.evaluate(()=>{
+      const frame=(callId,toolType,phase)=>{
+        const scene=testFactory(), event={...fixture(0),callId};
+        scene.onEvent(event,0);
+        scene.onEvent({...event,id:callId+'-end',status:'completed',toolType},.01);
+        return {ctx:renderCanvas(scene,phase,620),parts:drawFactory(scene,phase,620).parts};
+      };
+      return [0,.4,3].map(t=>{
+        const normal=frame('custom-abcd','files',t);
+        const {points}=normal.parts.find(p=>p.kind==='sticker');
+        return {t, ids:normal.parts.filter(p=>p.kind==='frontId'),
+          glyph:changedPixels(normal.ctx,frame('custom-abcd','web',t).ctx,points),
+          id:changedPixels(normal.ctx,frame('custom-0123','files',t).ctx,points)};
+      });
+    });
+    for(const {t,glyph} of samples) assert.ok(glyph>8,`front glyph at ${t}s: ${glyph} pixels`);
+    const big=samples.at(-1);
+    assert.equal(big.ids[0].text,'#ABCD');
+    assert.ok(big.ids[0].font>=9 && big.id>35);
+  });
+
+  it('keeps tool-specific ink visible on every carton in a mixed burst, including obscured front stickers', async () => {
+    for(const height of [620,1044]){
+      const boxes=await page.evaluate(height=>{
+        const scene=testFactory();
+        for(let i=0;i<10;i++)scene.onEvent({...fixture(i),visualCount:i===4?5:1},0);
+        const records=[...scene.calls.values()].reverse(), last=records[0];
+        const t=last.start+last.duration*.85, original=renderCanvas(scene,t,height);
+        const {parts}=drawFactory(scene,t,height), lids=parts.filter(p=>p.kind==='lid');
+        const stickers=parts.filter(p=>p.kind==='sticker');
+        return records.map((r,i)=>{
+          // Keep the ticket, geometry, text and paint order identical. Change only this tool mark.
+          const event=r.event;
+          r.event={...event,tool:'probe',toolType:/edit|write/i.test(event.tool)?'files':event.toolType==='web'?'search':'web'};
+          const altered=renderCanvas(scene,t,height);
+          r.event=event;
+          const lid=lids[i], [a,b]=lid.points, h=lid.y-lid.points.reduce((sum,p)=>sum+p.y/4,0);
+          return {tool:event.tool,front:changedPixels(original,altered,stickers[i].points),
+            side:changedPixels(original,altered,[a,b,{x:b.x,y:b.y+h},{x:a.x,y:a.y+h}])};
+        });
+      },height);
+      assert.equal(boxes.length,10);
+      for(const {tool,front,side} of boxes) assert.ok(front+side>10,`${tool} lost its mark at height ${height}`);
+      assert.ok(boxes.some(p=>p.front===0 && p.side>15),'exercises a carton with its front glyph completely hidden');
+      assert.ok(boxes.filter(p=>p.front>10).length>=2,'prints front stickers behind the leading carton');
+    }
+  });
+
+  it('turns the blades rigidly behind a circular bearing, rim and pipework, with a foreshortened roof vent', async () => {
+    for(const height of [620,1100]){
+      const result=await page.evaluate(height=>{
+        const scene=testFactory();
+        scene.onEvent(fixture(0),0);
+        const [r]=scene.calls.values(), shift=130*(1100-height)/480;
+        const cx=1053, cy=439-shift, rings=[], roof=[];
+        const ctx=pixelContext(height);
+        function observe(x,y,rx,ry) {
+          const m=ctx.getTransform(), center=new DOMPoint(x,y).matrixTransform(m);
+          const width=rx*Math.hypot(m.a,m.b), tall=ry*Math.hypot(m.c,m.d);
+          if (Math.hypot(center.x-cx,center.y-cy)<12 && width>=12)
+            rings.push({x:center.x-cx,y:center.y-cy,width,tall});
+          if (Math.hypot(center.x-760,center.y-234+shift)<6 && width>=20)
+            roof.push(tall/width);
+        }
+        const arc=ctx.arc.bind(ctx), ellipse=ctx.ellipse.bind(ctx);
+        ctx.arc=(x,y,r,...args)=>{observe(x,y,r,r);arc(x,y,r,...args);};
+        ctx.ellipse=(x,y,rx,ry,...args)=>{observe(x,y,rx,ry);ellipse(x,y,rx,ry,...args);};
+        const span=152, pixels=c=>c.getImageData(cx-span/2,cy-span/2,span,span).data;
+        const a=pixels(renderCanvas(scene,0,height,ctx));
+        // The first ticket moves at constant speed until the end of its cycle.
+        const quarterTurn=r.duration*Math.PI/2/(r.pitch*1320*.017);
+        const b=pixels(renderCanvas(scene,quarterTurn,height));
+        const vane=(data,i)=>data[i]>222; // Light metal against the recessed chamber.
+        let fixedChanges=0,moving=0,union=0,overlap=0;
+        for(let y=0;y<span;y++)for(let x=0;x<span;x++){
+          const dx=x+.5-span/2, dy=y+.5-span/2, radius=Math.hypot(dx,dy), i=4*(y*span+x);
+          const changed=a[i]!==b[i] || a[i+1]!==b[i+1] || a[i+2]!==b[i+2] || a[i+3]!==b[i+3];
+          const underPlate=dx>=-23 && dx<=15 && dy>=-44 && dy<=-40;
+          if(changed && (radius<20 || radius>55 || underPlate)) fixedChanges++;
+          if(radius<24 || radius>37) continue;
+          if(changed) moving++;
+          const rotated=4*(x*span+span-1-y);
+          if(vane(a,i) || vane(b,rotated)) union++;
+          if(vane(a,i) && vane(b,rotated)) overlap++;
+        }
+        return {rings,roof,fixedChanges,moving,union,overlap};
+      },height);
+      assert.ok(result.rings.length>=7 && Math.max(...result.rings.map(r=>r.width))>60);
+      for(const ring of result.rings) assert.deepEqual([ring.x,ring.y,ring.width],[0,0,ring.tall]);
+      assert.ok(result.roof.length>=2 && result.roof.every(ratio=>ratio>.4 && ratio<.55));
+      assert.equal(result.fixedChanges,0,'bearing, lip and pipe clamp stay in front of the rotor');
+      assert.ok(result.moving>500 && result.union>600);
+      assert.ok(result.overlap/result.union>.96,'visible blade silhouettes match after a quarter turn');
+    }
   });
 
   it('keeps the moving elbow below the compact mode rail and the forearm at its designed reach', async () => {

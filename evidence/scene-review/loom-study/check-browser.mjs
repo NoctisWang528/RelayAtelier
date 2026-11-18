@@ -39,19 +39,19 @@ try {
  await page.locator('#focus').click();
  await page.evaluate(()=>document.fonts.ready);
  const waitForRows=n=>page.waitForFunction(n=>window.stageText.some(p=>p.text===n+' ROWS'),n);
- const plaques=()=>page.evaluate(()=>window.stageText.filter(p=>p.x>=485&&p.x<=1170&&p.y>40&&p.y<110).map(p=>p.text));
+ const plaques=()=>page.evaluate(()=>window.stageText.filter(p=>p.x>=485&&p.x<=1170&&p.y>20&&p.y<275).map(p=>p.text));
  await waitForRows(0);
- const historyLabels=['GIT','…CH'].sort();
+ const historyLabels=['Git','WebSearch'].sort();
  assert.deepEqual((await plaques()).sort(),historyLabels);
  assert.equal(await page.evaluate(()=>window.relayDiagnostics().counts.total),2);
  const stage=page.locator('#stage');
- const web=await page.evaluate(()=>window.stageText.find(p=>p.text==='…CH'));
+ const web=await page.evaluate(()=>window.stageText.find(p=>p.text==='WebSearch'));
  await stage.hover({position:{x:web.px,y:web.py}});
  assert.equal(await stage.getAttribute('title'),'WebSearch');
  await page.locator('.main-stage').screenshot({path:out('host-live-seeded.png').pathname});
  await page.locator('#focus').click();
  await page.locator('#session').selectOption('empty');
- await page.waitForFunction(()=>window.relayDiagnostics().counts.total===0&&!window.stageText.some(p=>p.text==='GIT'));
+ await page.waitForFunction(()=>window.relayDiagnostics().counts.total===0&&!window.stageText.some(p=>p.text==='Git'));
  await page.locator('#focus').click();
  await waitForRows(0);
  assert.deepEqual(await plaques(),[]);
@@ -59,16 +59,16 @@ try {
  checks.push('Live snapshot seeds two tool labels, zero woven rows and a full hover title. Selecting an empty session clears the strip.');
  await page.locator('[data-mode=demo]').click();
  await waitForRows(2);
- assert.ok((await plaques()).includes('…AD'));
+ assert.ok((await plaques()).includes('Read'));
  await page.locator('[data-scene=chips]').click();
  await page.locator('[data-scene=loom]').click();
- await page.waitForFunction(()=>window.stageText.some(p=>p.text==='…AD'));
+ await page.waitForFunction(()=>window.stageText.some(p=>p.text==='Read'));
  await page.locator('.main-stage').screenshot({path:out('host-demo.png').pathname});
  checks.push('Demo builds its own plaques and cloth and retains them across a scene switch.');
  await page.locator('[data-mode=replay]').click();
- await page.waitForFunction(()=>window.stageText.some(p=>p.text==='GIT'));
+ await page.waitForFunction(()=>window.stageText.some(p=>p.text==='Git'));
  await waitForRows(2);
- assert.deepEqual((await plaques()).sort(),['GIT','…CH'].sort());
+ assert.deepEqual((await plaques()).sort(),['Git','WebSearch'].sort());
  await page.locator('#pause').click();
  await page.waitForTimeout(550);
  const paused=await page.locator('#stage').screenshot();
@@ -78,7 +78,7 @@ try {
  await page.locator('#replay-restart').click();
  await waitForRows(0);
  await waitForRows(2);
- assert.deepEqual((await plaques()).sort(),['GIT','…CH'].sort());
+ assert.deepEqual((await plaques()).sort(),['Git','WebSearch'].sort());
  checks.push('Replay uses only the two fixture calls. Pause freezes the raster and restart produces two rows again.');
  await page.locator('[data-mode=live]').click();
  await waitForRows(0);
@@ -91,7 +91,14 @@ try {
   const scene=new Loom(),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
   const width=1120,height=974,scale=width/1200,navBottom=65;
   canvas.width=width;canvas.height=height;
+  let firstPick;
+  const rect=ctx.rect.bind(ctx);
+  ctx.rect=(x,y,w,h)=>{
+   if(w===685 && h===4)firstPick=Math.min(firstPick,y);
+   return rect(x,y,w,h);
+  };
   const draw=(t,reducedMotion=false)=>{
+   firstPick=Infinity;
    ctx.setTransform(scale,0,0,scale,0,0);paper(ctx,0,0,1200,height/scale);
    scene.render(ctx,t,0,{viewport:{height:height/scale,navigation:{bottom:navBottom}},reducedMotion});
   };
@@ -116,20 +123,20 @@ try {
   scene.onEvent({...events[22],id:'late-failure',status:'failed'},44);
   draw(45);const after=ctx.getImageData(0,0,width,height).data;
   const delta=[];
-  for(let y=148;y<520;y++)for(let x=458;x<1080;x++){
+  for(let y=Math.ceil(firstPick*scale);y<Math.floor((firstPick+101*4)*scale);y++)for(let x=458;x<1080;x++){
    const offset=(y*width+x)*4;
    if(before[offset]!==after[offset]||before[offset+1]!==after[offset+1]||before[offset+2]!==after[offset+2])delta.push([x,y]);
   }
   return {active,match:reduced===settled,hasMotion:active!==settled,latePixels:delta.length,
    bounds:delta.length?[Math.min(...delta.map(p=>p[0])),Math.min(...delta.map(p=>p[1])),Math.max(...delta.map(p=>p[0])),Math.max(...delta.map(p=>p[1]))]:null,
-   spool:scene.latest.spool+1,rows:scene.calls.size};
+   firstPick,spool:scene.latest.spool+1,rows:scene.calls.size};
  });
  const {active,...metrics}=result;
  await writeFile(out('canvas-100-rows-fixture.png'),Buffer.from(active.split(',')[1],'base64'));
  assert.ok(metrics.match&&metrics.hasMotion);
  assert.equal(metrics.spool,8);assert.equal(metrics.rows,101);
  assert.ok(metrics.latePixels>0&&metrics.bounds[2]-metrics.bounds[0]<16&&metrics.bounds[3]-metrics.bounds[1]<6,JSON.stringify(metrics));
- const expectedX=(485+7.5*685/16)*1120/1200,expectedY=(136+22+22*4+2)*1120/1200;
+ const expectedX=(485+7.5*685/16)*1120/1200,expectedY=(metrics.firstPick+22*4+2)*1120/1200;
  assert.ok(Math.abs((metrics.bounds[0]+metrics.bounds[2])/2-expectedX)<2);
  assert.ok(Math.abs((metrics.bounds[1]+metrics.bounds[3])/2-expectedY)<2);
  checks.push('Reduced motion raster equals settled raster. Updating one woven result changes only its small stitch under spool 8 within the cloth.');

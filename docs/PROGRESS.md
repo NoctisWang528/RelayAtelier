@@ -1,4 +1,10 @@
-# 双色飞轮图标与 Agent Hooks · 2026-11-18
+# 1.1.1 · Loom 铭牌与 Factory 货物
+
+织机的十六块铭牌现在按可用宽度排成两行或四行，通过彩色引线连接各自的经线。常见工具直接显示名称，较长的操作名可换行。共享槽保留一个具体名称，悬停时可查看完整列表。
+
+Factory 的纸箱从取料到出带都有工具图记。近侧箱壁也有印记，前一只箱遮住端面运单时仍可辨认。风机的叶片、轴承、螺栓圈及外壳采用同一正视圆心，机柜顶面的通风口保留俯视投影。可分别运行 `node --test tests/loom-spools.test.mjs` 和 `node --test tests/factory-cargo.test.mjs` 复现针对这三处问题的检查。
+
+## 双色飞轮图标与 Agent Hooks · 2026-11-18
 
 当前源码在桌面窗口和 macOS Dock 使用双色飞轮图标，ICNS 与 ICO 资源也已更新。桌面「本地来源」可以安装、修复、移除 Codex、Claude Code 和 OpenCode 的可选 Hook。普通会话监听继续只读运行。公开源码仓库为 [RelayAtelier](https://github.com/NoctisWang528/RelayAtelier)。
 

@@ -32,22 +32,93 @@ function assignSpool(spools,tool){
  return slot;
 }
 
-function plaqueBase(ctx,slot,x,y){
- const w=36,h=27;
+function plaqueLayout(ctx,height,navBottom){
+ const canvas=ctx.canvas;
+ const scale=canvas?.clientWidth&&canvas.clientHeight
+  ?Math.min(canvas.clientWidth/1200,canvas.clientHeight/height):ctx.getTransform().a;
+ const rows=2*PITCH*scale>=80?2:4;
+ const columns=SLOTS/rows;
+ // In a narrow portrait canvas the rack can extend left of the comb.
+ const column=clamp(88/scale,rows*PITCH,(RIGHT-16)/columns);
+ const font=clamp(14*scale,13,14)/scale,gap=3/scale,h=font*2.4;
+ const y=Math.max(12,navBottom+8/scale),rackBottom=y+rows*(h+gap)-gap;
+ const top=rackBottom+20/scale+22;
+ const bounds=Array.from({length:SLOTS},(_,slot)=>{
+  const row=slot%rows,left=RIGHT-(columns-Math.floor(slot/rows))*column;
+  const x=left+(rows+1)*gap;
+  return {x,y:y+row*(h+gap),w:column-(rows+2)*gap,h,leadX:left+(row+.5)*gap};
+ });
+ return {bounds,top,font};
+}
+
+function plaqueBase(ctx,slot,{x,y,w,h,leadX},rackBottom,top){
+ const color=yarn(slot),mid=y+h/2,pin=center(slot);
+ line(ctx,[[x,mid],[leadX,mid],[leadX,rackBottom+2],[pin,top-26],[pin,top-22]],color,1.25);
  ctx.save();ctx.shadowColor='#81796619';ctx.shadowBlur=3;ctx.shadowOffsetY=2;
  box(ctx,x,y,w,h,2,ENAMEL,'#c8c4bb',.7);ctx.restore();
- box(ctx,x+2,y+2,w-4,h-4,1,null,'#e2ded5',.6);
- line(ctx,[[x+4,y+h-5],[x+32,y+h-5]],yarn(slot),2);
+ line(ctx,[[x+1.5,y+3],[x+1.5,y+h-3]],color,2.5);
+ disc(ctx,pin,top-22,2,color);
 }
-function plaque(ctx,slot,bounds,names,selected){
- if(!names.size)return;
+
+// Wrap at an identifier boundary when possible. An exceptionally long operation
+// keeps both its leading words and its distinguishing tail.
+function nameLines(ctx,name,width){
+ const fits=s=>ctx.measureText(s).width<=width;
+ if(fits(name))return [name];
+ const parts=name.split(/__|::|[./]/u).filter(Boolean),op=parts.pop()||name;
+ if(fits(op)){
+  const source=parts.pop();
+  if(!source||source==='functions')return [op];
+  return [op,compact(source)];
+ }
+ const chars=Array.from(op);
+ let cut=1;
+ while(cut<chars.length&&fits(chars.slice(0,cut+1).join('')))cut++;
+ const prefix=chars.slice(0,cut).join('');
+ const boundary=prefix.match(/^.*(?:[_ -]|[a-z0-9](?=[A-Z]))/u)?.[0];
+ if(boundary&&fits(op.slice(boundary.length)))return [boundary,op.slice(boundary.length)];
+ const rest=op.slice(prefix.length);
+ if(!fits(rest)){
+  // Prefer complete words ("list_pending…" / "revisions") to fragments.
+  const words=op.split(/[_ -]+|(?<=[a-z0-9])(?=[A-Z])/u);
+  const last=words.at(-1),first=(/^[_ -]/u.test(rest)?prefix:boundary)?.replace(/[_ -]+$/u,'');
+  if(first&&last&&fits(last))return [fits(first+'…')?first+'…':first,last];
+ }
+ return [prefix,compact(rest)];
+
+ function compact(s){
+  if(fits(s))return s;
+  const glyphs=Array.from(s);
+  let result='…';
+  for(let keep=1;keep<glyphs.length;keep++){
+   const head=glyphs.slice(0,Math.ceil(keep/2)),tail=glyphs.slice(glyphs.length-Math.floor(keep/2));
+   const candidate=head.join('')+'…'+tail.join('');
+   if(!fits(candidate))break;
+   result=candidate;
+  }
+  return result;
+ }
+}
+function plaque(ctx,slot,bounds,names,selected,font){
+ if(!names.length)return;
  const {x,y,w,h}=bounds,cx=x+w/2,chosen=selected?.spool===slot;
  if(chosen)box(ctx,x,y,w,h,2,null,INK,1.8);
- const name=chosen?selected.tool:names.size===1?names.values().next().value:`+${names.size}`;
- const upper=name.toUpperCase();
- ctx.font=`${chosen?'bold':'normal'} 13px ComicMono, ui-monospace, monospace`;
- ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=chosen?INK:'#615e58';
- ctx.fillText(upper.length>3?'…'+upper.slice(-2):upper,cx,y+12);
+ const name=chosen?selected.tool:names[0],shared=names.length>1;
+ ctx.font=`${chosen?'bold':'normal'} ${font}px ComicMono, ui-monospace, monospace`;
+ ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=chosen?INK:'#49463e';
+ const inset=shared?Math.max(4,font*.24+2.5):4;
+ const lines=nameLines(ctx,name,w-2*inset);
+ const countLine=shared&&lines.length===1;
+ if(countLine)lines.push(`+${names.length-1}`);
+ lines.forEach((s,i)=>{
+  if(countLine&&i===1){
+   ctx.font=`${font*.86}px ComicMono, ui-monospace, monospace`;
+   ctx.fillStyle='#655e50';
+  }
+  ctx.fillText(s,cx,y+h/2+(i-(lines.length-1)/2)*font);
+ });
+ // The edge marker also fits beside an operation that needs both text lines.
+ if(shared)disc(ctx,x+1.5,y+h/2,font*.24,yarn(slot),INK,.8);
 }
 
 function row(ctx,r,y,fraction=1){
@@ -144,7 +215,8 @@ function readouts(ctx,height,amount,selected,queued,shared){
  if(selected)statusMark(ctx,selected.event.status,253,displayY+lerp(displayH-43,displayH/2,amount),10,resultInk(selected));
  label(ctx,`QUEUE  ${queued}`,329,height-49,12,MUTED);
 }
-function machine(ctx,height,amount,bottom,TOP){
+function machine(ctx,height,amount,bottom,rack){
+  const {top:TOP,bounds}=rack;
   leftInstruments(ctx,height,amount);
   panel(ctx,407,TOP+7,40,bottom-TOP-6);
   for(const y of [TOP+24,bottom-38]){box(ctx,445,y,14,12,2,ENAMEL,EDGE,.7);screw(ctx,452,y+6,1.7);}
@@ -155,7 +227,8 @@ function machine(ctx,height,amount,bottom,TOP){
    metal(ctx,x-3,TOP-47,26,8,2);for(const xx of [x+3,x+15])line(ctx,[[xx,TOP-39],[xx,TOP-22]],'#c4c0b6',1);
   }
   metal(ctx,463,TOP-22,724,21,1);metal(ctx,459,bottom,734,20,1);
-  for(let i=0;i<SLOTS;i++)plaqueBase(ctx,i,center(i)-18,TOP-61);
+  const last=bounds.at(-1);
+  bounds.forEach((b,i)=>plaqueBase(ctx,i,b,last.y+last.h,TOP));
 }
 
 export default class Loom{
@@ -211,9 +284,9 @@ export default class Loom{
   for(const r of pending){r.weaveAt=cursor;r.duration=duration;cursor+=duration;}
   this.nextAt=cursor;
  }
- drawMachine(ctx,height,amount,bottom,top){
+ drawMachine(ctx,height,amount,bottom,rack){
   if(typeof OffscreenCanvas==='undefined'){
-   machine(ctx,height,amount,bottom,top);
+   machine(ctx,height,amount,bottom,rack);
    return;
   }
   const scale=Math.min(2,ctx.getTransform().a);
@@ -223,7 +296,7 @@ export default class Loom{
    this.machineStamp=null;
   }
   // The moving heddles, all woven rows and the selected outline are drawn independently.
-  const stamp=JSON.stringify([height,top,scale]);
+  const stamp=JSON.stringify([height,rack.top,rack.bounds[0].w,scale]);
   if(stamp!==this.machineStamp){
    // Rasterize this stationary plate once in software for consistent edge coverage
    // in both the desktop compositor and CPU-backed frame captures.
@@ -231,13 +304,14 @@ export default class Loom{
    plate.setTransform(1,0,0,1,0,0);
    plate.clearRect(0,0,width,pixelsHigh);
    plate.scale(scale,scale);
-   machine(plate,height,amount,bottom,top);
+   machine(plate,height,amount,bottom,rack);
    this.machineStamp=stamp;
   }
   ctx.drawImage(this.machinePlate,0,0,width/scale,pixelsHigh/scale);
  }
  render(ctx,t,dt,state={}){
-  ctx.save();const height=clamp(state.viewport?.height??1100,620,1100),amount=(1100-height)/480,bottom=height-51,TOP=Math.max(120,(state.viewport?.navigation?.bottom??0)+71);
+  ctx.save();const height=clamp(state.viewport?.height??1100,620,1100),amount=(1100-height)/480,bottom=height-51;
+  const rack=plaqueLayout(ctx,height,state.viewport?.navigation?.bottom??0),TOP=rack.top;
   const now=state.reducedMotion?Math.max(t,this.nextAt):t,records=[...this.calls.values()];
   const woven=records.filter(r=>now>=r.weaveAt+r.duration);
   const active=records.find(r=>now>=r.weaveAt&&now<r.weaveAt+r.duration);
@@ -247,12 +321,12 @@ export default class Loom{
   const visible=woven.slice(-capacity),front=clothTop+visible.length*ROW;
   const selected=active||this.latest;
   const queued=records.length-woven.length,shared=Boolean(selected&&this.spools[selected.spool].size>1);
-  this.drawMachine(ctx,height,amount,bottom,TOP);
+  this.drawMachine(ctx,height,amount,bottom,rack);
   readouts(ctx,height,amount,selected,queued,shared);
-  this.plaqueBounds=this.spools.map((names,slot)=>{
-   const bounds={x:center(slot)-18,y:TOP-61,w:36,h:27,names:[...names]};
-   plaque(ctx,slot,bounds,names,selected);
-   return bounds;
+  this.plaqueBounds=rack.bounds;
+  this.plaqueBounds.forEach((bounds,slot)=>{
+   bounds.names=[...this.spools[slot]];
+   plaque(ctx,slot,bounds,bounds.names,selected,rack.font);
   });
   // Spaced pastel warp pairs leave the paper visible, as in the empty reference.
   for(let i=0;i<=WARPS;i++){

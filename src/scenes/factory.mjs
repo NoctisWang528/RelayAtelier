@@ -94,9 +94,33 @@ function cartonSize(event) {
   }
 }
 
-function parcel(ctx, r, at, p, growth, marked, grounded=true) {
+// In the face's own coordinates, start at its near edge and leave room for the call ID.
+function cargoPrint(ctx, r, width, height, sticker=false) {
+  const event = r.event, size = Math.min(14,height*.48,width*.38);
+  const textX = 2*size+5;
+  const font = Math.min(12,height*.68,(width-textX-3)/(.61*r.printId.length));
+  if (sticker) {
+    const paperW = font>=9 ? width : 2*size+5;
+    box(ctx,0,-height/2,paperW,height,0,'#fffcf6');
+    if (event.status==='failed' || event.status==='waiting' || event.status==='unknown') {
+      disc(ctx,paperW,-height/2,Math.min(3.5,size*.45),statusColor(event));
+    }
+  }
+  if (font>=9) label(ctx,r.printId,textX,0,font,INK);
+  const x = size+2;
+  if (/edit|write/i.test(event.tool)) {
+    ctx.save(); ctx.translate(x,0); ctx.scale(size,size);
+    polygon(ctx,[[-.8,.8],[-.64,.15],[.47,-.93],[.92,-.48],[-.19,.65]],null,INK,.17);
+    line(ctx,[[.25,-.7],[.69,-.25]],INK,.14);
+    ctx.restore();
+  } else {
+    glyph(ctx,event.toolType,x,0,size,INK);
+  }
+}
+
+function parcel(ctx, r, at, p, growth, grounded=true) {
   const [width,depth,height] = r.size.map(n => n * lerp(r.packed,1,growth));
-  const d = depth/2, w = width/2, event = r.event;
+  const d = depth/2, w = width/2;
   ctx.save();
   ctx.translate(...at);
   if (grounded) {
@@ -117,26 +141,16 @@ function parcel(ctx, r, at, p, growth, marked, grounded=true) {
     const seam = -d + depth*i/parts;
     line(ctx,[p(seam,-w,0),p(seam,-w,height),p(seam,w,height)],'#746e63',1.9);
   }
-  if (count>1) {
-    const [dx,dy] = p(1,0);
-    ctx.save(); ctx.translate(...p(0,-w,height*.5)); ctx.transform(dx,dy,0,1,0,0);
-    label(ctx,`×${count}`,0,0,Math.min(12,height*.26),INK,'center'); ctx.restore();
-  }
+  // The next carton can hide the downstream face. Repeat the tool mark on the near wall.
+  const [dx,dy] = p(1,0);
+  ctx.save(); ctx.translate(...p(-d+2,-w,height*.68)); ctx.transform(dx,dy,0,1,0,0);
+  cargoPrint(ctx,r,depth-4,Math.min(26,height*.56));
+  if (count>1) label(ctx,`×${count}`,depth*.5,height*.34,Math.min(12,height*.27),INK,'center');
+  ctx.restore();
+
   const [wx,wy] = p(0,1);
-  ctx.translate(...p(d,0,height*.34)); ctx.transform(wx,wy,0,1,0,0);
-  const labelW=width*.55, labelH=height*.38;
-  box(ctx,-labelW/2,-labelH/2,labelW,labelH,0,'#fffcf6');
-  if (marked) {
-    const size = Math.min(labelW,labelH)*.43;
-    if (/edit|write/i.test(event.tool)) {
-      polygon(ctx,[[-size*.8,size*.8],[-size*.64,size*.15],[size*.47,-size*.93],[size*.92,-size*.48],[-size*.19,size*.65]],null,INK,1.4);
-    } else {
-      glyph(ctx,event.toolType,0,0,size,INK);
-    }
-    if (event.status==='failed' || event.status==='waiting' || event.status==='unknown') {
-      disc(ctx,labelW/2,-labelH/2,Math.min(3.5,size*.45),statusColor(event));
-    }
-  }
+  ctx.translate(...p(d,-w*.84,height*.44)); ctx.transform(wx,wy,0,1,0,0);
+  cargoPrint(ctx,r,width*.84,Math.min(34,height*.55),true);
   ctx.restore();
 }
 
@@ -207,7 +221,7 @@ function gripper(ctx, target, p, jaw, carried, packedHeight) {
   // Coordinates here are relative to the bottom of the pickup plate.
   ctx.translate(0,HEAD_HEIGHT);
   solid(ctx,p,-jaw-4,-jaw,-8,8,-19,0,ENAMEL,'#d3cfc4','#aaa598',EDGE);
-  if (carried) parcel(ctx,carried,[0,packedHeight],p,0,true,false);
+  if (carried) parcel(ctx,carried,[0,packedHeight],p,0,false);
   solid(ctx,p,-jaw,jaw,-4,4,-2,1,'#eeeae1','#c0bbaf','#aaa598',EDGE);
   solid(ctx,p,-10,10,-20,20,0,7,ENAMEL,'#d2cfc5','#b6b1a6',EDGE);
   solid(ctx,p,jaw,jaw+4,-8,8,-19,0,ENAMEL,'#d3cfc4','#aaa598',EDGE);
@@ -246,33 +260,39 @@ function generator(ctx,turn){
   metal(ctx,968,414,13,66,0);
   for(let y=418;y<479;y+=4)line(ctx,[[968,y],[980,y]],'#a8a498',1);
   ellipse(ctx,987,445,7,24,'#dfdbd1','#aaa69c');
-  ellipse(ctx,1053,442,73,66,'#c8c4bb','#a9a59b',1.3);
+  // The generator faces the viewer. Its chamber, rotor and bearing share one axis.
+  ctx.save();ctx.translate(1053,439);
+  disc(ctx,0,0,69,'#c8c4bb','#a9a59b',1.3);
   for(let i=0;i<16;i++){
-    const a=i*Math.PI/8,x=1053+Math.cos(a)*71,y=442+Math.sin(a)*64;
-    ctx.save();ctx.translate(x,y);ctx.rotate(a+Math.PI/2);metal(ctx,-5,-6,10,13,3);ctx.restore();
+    const a=i*Math.PI/8;
+    ctx.save();ctx.rotate(a);metal(ctx,-5,-74,10,12,3);ctx.restore();
   }
-  ellipse(ctx,1053,439,69,62,'#e5e1d8','#aaa69b',1.1);
-  ellipse(ctx,1053,439,63,56,'#f8f6f0','#aaa69b',1.3);
-  const chamber=ctx.createLinearGradient(994,390,1110,485);
-  chamber.addColorStop(0,'#bfbcb3');chamber.addColorStop(.42,'#e6e2d9');chamber.addColorStop(1,'#f7f4ec');
-  ellipse(ctx,1053,439,57,50,chamber,'#a8a498');
-  for(let i=0;i<4;i++)ellipse(ctx,1051-i,439,52-i*4,46-i*3,null,'#c7c2b7',.8);
-  ctx.save();ellipse(ctx,1053,439,57,50,null,null);ctx.clip();ctx.translate(1053,444);ctx.scale(1,.88);ctx.rotate(turn*.017);
+  disc(ctx,0,0,65,'#e5e1d8','#aaa69b',1.1);
+  disc(ctx,0,0,59,'#f8f6f0','#aaa69b',1.3);
+  const chamber=ctx.createLinearGradient(-40,-45,45,46);
+  chamber.addColorStop(0,'#a9a599');chamber.addColorStop(1,'#d6d1c6');
+  disc(ctx,0,0,54,chamber);
+  ctx.save();ctx.clip();
+  for(const radius of [50,46,42])disc(ctx,0,0,radius,null,'#b6b1a5',.8);
+  ctx.rotate(turn*.017);
   for(let i=0;i<3;i++){
-    ctx.rotate(Math.PI*2/3);ctx.beginPath();ctx.moveTo(-9,8);ctx.bezierCurveTo(-22,-6,-27,-38,-14,-52);ctx.bezierCurveTo(7,-49,34,-36,44,-19);ctx.bezierCurveTo(23,-20,10,-9,7,10);ctx.closePath();
-    ctx.fillStyle=i===1?'#c7c3b8':'#e3dfd5';ctx.fill();ctx.strokeStyle='#aba79b';ctx.lineWidth=.9;ctx.stroke();
-    ctx.beginPath();ctx.moveTo(-12,-43);ctx.bezierCurveTo(-5,-24,5,-15,7,-8);ctx.strokeStyle='#f9f7f0';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-9,8);ctx.bezierCurveTo(-22,-6,-27,-38,-14,-52);ctx.bezierCurveTo(7,-52,34,-36,44,-19);ctx.bezierCurveTo(23,-20,10,-9,7,10);ctx.closePath();
+    ctx.fillStyle='#e8e4da';ctx.fill();ctx.strokeStyle='#928d80';ctx.lineWidth=1;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-14,-50);ctx.bezierCurveTo(-7,-28,3,-16,7,-8);ctx.strokeStyle='#fffdf7';ctx.stroke();
+    ctx.rotate(Math.PI*2/3);
   }
   ctx.restore();
-  ellipse(ctx,1053,446,23,21,'#b8b4a9','#a29e93');ellipse(ctx,1053,448,19,18,ENAMEL,'#a7a397');
-  ellipse(ctx,1053,448,14,13,'#e3dfd5','#aaa69a');
-  for(let i=0;i<10;i++){const a=i*Math.PI/5;screw(ctx,1053+Math.cos(a)*16,448+Math.sin(a)*15,1.3);}
-  ellipse(ctx,1053,449,8,7,'#fffdf7','#aaa69b');screw(ctx,1053,449,3);
+  disc(ctx,0,0,54,null,'#a8a498',2);
+  disc(ctx,0,0,21,'#b8b4a9','#a29e93');disc(ctx,0,0,18,ENAMEL,'#a7a397');
+  disc(ctx,0,0,13,'#e3dfd5','#aaa69a');
+  for(let i=0;i<10;i++){const a=i*Math.PI/5;screw(ctx,Math.cos(a)*15.5,Math.sin(a)*15.5,1.3);}
+  disc(ctx,0,0,7,'#fffdf7','#aaa69b');screw(ctx,0,0,3);
   for(let i=0;i<18;i++){
-    const a=i*Math.PI/9,x=1053+Math.cos(a)*66,y=439+Math.sin(a)*59;
-    screw(ctx,x,y,2.8);
-    line(ctx,[[1053+Math.cos(a)*59,439+Math.sin(a)*52],[1053+Math.cos(a)*62,439+Math.sin(a)*55]],'#a7a398',1.1);
+    const a=i*Math.PI/9,x=Math.cos(a),y=Math.sin(a);
+    screw(ctx,x*62,y*62,2.8);
+    line(ctx,[[x*56,y*56],[x*58,y*58]],'#a7a398',1.1);
   }
+  ctx.restore();
   hose(ctx,p=>{p.moveTo(990,429);p.bezierCurveTo(986,404,1001,397,1004,390);p.bezierCurveTo(1025,375,1077,375,1102,395);p.bezierCurveTo(1114,407,1120,419,1119,439);},4);
   hose(ctx,p=>{p.moveTo(1001,482);p.bezierCurveTo(1027,502,1084,499,1108,477);},4);
   for(const [x,y]of [[1004,390],[1025,382],[1079,385],[1102,395],[1014,490],[1085,489]]){metal(ctx,x-3,y-6,6,12,1);screw(ctx,x,y,1.6);}
@@ -298,8 +318,11 @@ function machinery(ctx,latest,turn,count,amount){
   panel(ctx,526,421,37,39);polygon(ctx,[[544,431],[552,446],[536,446]],null,'#aaa69c');label(ctx,'ϟ',544,441,11,MUTED,'center');
   panel(ctx,550,529,605,15);panel(ctx,564,218,273,312);
   metal(ctx,565,218,272,51,1);
-  ellipse(ctx,760,237,28,15,'#e2e0d8');ellipse(ctx,760,234,27,13,ENAMEL);
-  for(let i=0;i<12;i++){const a=i*Math.PI/6;line(ctx,[[760+Math.cos(a)*5,234+Math.sin(a)*2],[760+Math.cos(a)*24,234+Math.sin(a)*11]],EDGE,.7);}
+  // The roof grille lies flat. Apply its foreshortening to the rim, spokes and cap together.
+  ctx.save();ctx.translate(760,234);ctx.scale(1,.48);
+  disc(ctx,0,6,28,'#e2e0d8',EDGE);disc(ctx,0,0,27,ENAMEL,EDGE);
+  for(let i=0;i<12;i++){const a=i*Math.PI/6;line(ctx,[[0,0],[Math.cos(a)*24,Math.sin(a)*24]],EDGE,1.2);}
+  disc(ctx,0,0,5,'#e5e1d8',EDGE);ctx.restore();
   screw(ctx,586,236,4);screw(ctx,812,236,4);
   disc(ctx,590,286,12,ENAMEL,EDGE);line(ctx,[[590,286],[596,279]],'#8a877c',1.4);
   for(let i=0;i<10;i++)box(ctx,643+i*6,279,5,11,0,i<Math.min(10,count)?'#ddbc65':'#d7d3c7','#b5b1a6',.5);
@@ -370,6 +393,8 @@ export default class Factory {
    record.visualCount = event.visualCount ?? record.visualCount ?? 1;
    if (!fresh) return;
    const count = Math.min(record.visualCount,4);
+   const id = String(event.callId || event.id);
+   record.printId = '#' + (id.split(/[-_:]/).pop() || id).slice(-4).toUpperCase();
    record.size = cartonSize(event);
    record.size[1] += (count-1)*9;
    record.packed = Math.min(1,48/record.size[0],42/record.size[1],42/record.size[2]);
@@ -427,7 +452,7 @@ export default class Factory {
   feeder(ctx,feed,project,lerp(49,69,amount));
   const staged=queued[0];
   if (staged && (staged===job || progress>=.30)) {
-    parcel(ctx,staged,feed,project,0,true);
+    parcel(ctx,staged,feed,project,0);
   }
   if (queued.length>1) {
     const [x,y]=project(48,0,-10);
@@ -437,7 +462,7 @@ export default class Factory {
   beltRail(ctx,point,1);
   for (let i=outgoing.length-1; i>=0; i--) {
     const r=outgoing[i], distance=travel-r.releaseU;
-    parcel(ctx,r,point(dropU+distance),project,ease(distance/.065),i===0);
+    parcel(ctx,r,point(dropU+distance),project,ease(distance/.065));
   }
   const packedHeight=job ? job.size[2]*job.packed : 0;
   const target=job ? wrist(progress,home,feed,drop,packedHeight,compact) : home;

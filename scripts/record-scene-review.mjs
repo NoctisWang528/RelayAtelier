@@ -69,20 +69,27 @@ try {
   await page.close();
   const square = await browser.newPage({viewport:{width:1134,height:1009}});
   square.on('pageerror', e=>report.errors.push(e.message));
+  // Locate the printed name from the actual frame, including the responsive plaque rack.
+  await square.addInitScript(()=>{
+    const fillText=CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){
+      if(this.canvas.id==='stage' && text==='Read' && this.textAlign==='center'){
+        const point=new DOMPoint(x,y).matrixTransform(this.getTransform());
+        const box=this.canvas.getBoundingClientRect();
+        window.readPlaque={x:box.left+point.x*box.width/this.canvas.width,
+                          y:box.top+point.y*box.height/this.canvas.height};
+      }
+      return fillText.call(this,text,x,y,...args);
+    };
+  });
   await square.goto(service.url, {waitUntil:'domcontentloaded'});
   await square.waitForFunction(()=>window.relayDiagnostics?.().connected && relayDiagnostics().counts.total===48);
   await square.locator('#focus').click();
   await square.locator('[data-scene=loom]').click();
   const beforeLoom = await square.evaluate(()=>relayDiagnostics().rendered);
   await square.waitForFunction(n=>relayDiagnostics().rendered>n+1,beforeLoom);
-  const readPlaque = await square.evaluate(()=>{
-    const box = document.querySelector('#stage').getBoundingClientRect();
-    const nav = document.querySelector('.mode-rail').getBoundingClientRect();
-    const h = Math.min(1100,Math.max(620,1200*box.height/box.width));
-    const s = Math.min(box.width/1200,box.height/h);
-    const left = box.left+(box.width-1200*s)/2, top = box.top+(box.height-h*s)/2;
-    return {x:left+(485+7.5*(1170-485)/16)*s, y:top+(Math.max(120,(nav.bottom-top)/s+71)-49)*s};
-  });
+  await square.waitForFunction(()=>Boolean(window.readPlaque));
+  const readPlaque = await square.evaluate(()=>window.readPlaque);
   await square.mouse.move(readPlaque.x, readPlaque.y);
   await square.waitForFunction(()=>/read/i.test(document.querySelector('#stage').title),null,{timeout:3000});
   assert.equal(await square.evaluate(()=>relayDiagnostics().delivered),0);
