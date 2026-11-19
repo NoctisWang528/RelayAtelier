@@ -156,10 +156,10 @@ test('rescanning releases retired raw line buffers while retaining safe pairing 
   const path = join(dir, 'session-a.jsonl');
   await writeFile(path, line(use('paired', '2020-01-01')) + '{"unfinished":"PRIVATE');
   await hub.start();
-  assert.ok(hub._tails.get(path).pending.length > 0);
+  assert.ok(hub._tails.get('claude\0' + path).pending.length > 0);
   await rename(path, `${path}.old`); await hub._poll();
-  assert.equal(hub._tails.has(path), false);
-  assert.ok(hub._contexts.has(path));
+  assert.equal(hub._tails.has('claude\0' + path), false);
+  assert.ok(hub._contexts.has('claude\0' + path));
   await writeFile(path, line(result('paired'))); await hub._poll();
   const events = hub.snapshot().events;
   assert.deepEqual(events.map(e => e.status), ['started', 'completed']);
@@ -418,7 +418,7 @@ test('SQLite legacy/v2 dedup, read-only open, parent identity and live WAL updat
   assert.deepEqual(hub.snapshot().events.map(e => e.status), ['started', 'completed']);
   assert.ok(hub.snapshot().events.every(e => e.parentAgentId === 'opencode:parent'));
   assert.equal(events.length, 0);
-  assert.throws(() => hub._db.exec("INSERT INTO session VALUES ('forbidden', NULL)"), /readonly|read.only/i);
+  assert.throws(() => hub._databases.get('opencode\0' + path).db.exec("INSERT INTO session VALUES ('forbidden', NULL)"), /readonly|read.only/i);
   const now = Date.now() + 100;
   modern.content.push({ type: 'tool', id: 'b', name: 'read', time: { created: now }, state: { status: 'running', input: { filePath: '/private/safe.md' } } });
   const update = db.prepare('UPDATE session_message SET data = ?, time_updated = ? WHERE id = ?');

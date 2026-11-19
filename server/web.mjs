@@ -3,19 +3,38 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
+import {openSourceSettings} from './source-settings.mjs';
 import {SourceHub} from './hub.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-export async function startServer({port=4317,hub=new SourceHub()}={}){
+export async function startServer({port=4317,hub,settingsFile}={}){
+ if(!hub) {
+  hub=new SourceHub();
+  settingsFile??=path.join(process.env.RELAY_DATA_DIR || path.join(root,'.runtime','web'),'sources.json');
+ }
+ const settings=settingsFile ? await openSourceSettings(settingsFile,hub) : null;
  const token=randomBytes(32).toString('hex'),clients=new Set();let origin='';
  const equal=v=>typeof v==='string'&&Buffer.byteLength(v)===token.length&&timingSafeEqual(Buffer.from(v),Buffer.from(token));
  const server=http.createServer(async(req,res)=>{
   let url;try{url=new URL(req.url,'http://127.0.0.1');}catch{res.writeHead(400).end('Invalid request URL');return;}
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-store');
   if(req.headers.host!==origin.replace('http://','') || (req.headers.origin&&req.headers.origin!==origin)){res.writeHead(403).end('Local access only');return;}
-  if(req.method!=='GET'){res.writeHead(405).end();return;}
+  const saving=req.method==='POST' && url.pathname==='/api/sources' && settings;
+  if(req.method!=='GET' && !saving){res.writeHead(405).end();return;}
   if(url.pathname==='/'&&equal(url.searchParams.get('token'))){res.writeHead(303,{'Set-Cookie':`relay=${token}; HttpOnly; SameSite=Strict; Path=/`,'Location':'/'}).end();return;}
   const cookie=req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith('relay='))?.slice(6);
   if(!equal(cookie)){res.writeHead(401).end('Open the local launch URL printed by npm run web.');return;}
+  if(url.pathname==='/api/sources' && settings){
+   res.setHeader('Content-Type','application/json');
+   if(!saving){res.end(JSON.stringify(settings.list()));return;}
+   if(req.headers.origin!==origin || req.headers['content-type']!=='application/json'){res.writeHead(403).end();return;}
+   try{
+    const chunks=[];let size=0;
+    for await(const chunk of req){size+=chunk.length;if(size>1024*1024){res.writeHead(413).end();return;}chunks.push(chunk);}
+    const {id,enabled,directories}=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    res.end(JSON.stringify(await settings.save(id,{enabled,directories})));
+   }catch(error){res.writeHead(400).end(JSON.stringify({error:error.code?'无法保存来源设置。':error.message}));}
+   return;
+  }
   if(url.pathname==='/api/snapshot'){res.writeHead(200,{'Content-Type':'application/json'}).end(JSON.stringify(hub.snapshot()));return;}
   if(url.pathname==='/api/events'){
    res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive'});res.write(': connected\n\n');clients.add(res);

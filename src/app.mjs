@@ -9,6 +9,7 @@ import Slots from './scenes/slots.mjs';
 import Roulette from './scenes/roulette.mjs';
 import {EventStore,AnimationQueue,COLORS,TYPES} from './state.mjs';
 import {DemoPlayer} from './demo.mjs';
+import {createSourceControls} from './source-controls.mjs';
 import {createHookControls} from './hook-controls.mjs';
 const icons={dial:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3m9 6h-3M12 21v-3M3 12h3m6 0 5-5"/>',factory:'<path d="M3 16h18v5H3zM6 16V9l6-5 5 4-4 4m-1-8V2m1 10 4 4m-3-3 3-3"/><path d="M6 18.5h.01m6 0h.01m6 0h.01"/>',chips:'<rect x="8" y="3" width="12" height="18" rx="2"/><path d="m5 5-3 1 2 15 3-.5M14 8l3 4-3 4-3-4z"/>',rhythm:'<path d="M8 3 2 21m9-18-2 18m4-18 2 18m1-18 6 18M4 17h16M8 8h8"/><rect x="10" y="12" width="4" height="2"/>',loom:'<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 3v18m5-18v18m5-18v18M3 8h18M3 16h18m-12-4h9"/>',dataflow:'<path d="m12 10-7-5m9 5 5-5M12 14l-7 5m9-5 5 5"/><circle cx="12" cy="12" r="3"/><circle cx="4" cy="4" r="2"/><circle cx="20" cy="4" r="2"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="20" r="2"/>',pin:'<path d="m9 3 6 0-1 7 4 4H6l4-4-1-7m3 11v7"/>',pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 5 11 7-11 7z"/>',focus:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',mark:'<path d="M4 5h16M4 19h16M7 3v18m5-18v18m5-18v18M3 11h18m-18 3h18"/>'};
 const svg=name=>`<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -29,7 +30,17 @@ document.querySelector('#app').innerHTML=`<div class="app-shell">
 </section>
 <header class="topbar"><span class="brand-name">Relay Atelier</span><div class="source-switch" role="group" aria-label="事件来源"><button data-mode="live" aria-pressed="true">Live</button><button data-mode="replay" aria-pressed="false">Replay</button><button data-mode="demo" aria-pressed="false">Demo</button></div><span class="signal-tag"><span id="stage-dot" class="dot"></span><span id="stage-mode">LIVE / READ ONLY</span></span><div id="replay-controls" class="replay-controls" hidden><button id="replay-restart">重新播放</button><label for="replay-speed">速度</label><select id="replay-speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select><span id="replay-progress"></span></div><div class="toolbar-right"><button id="pause" aria-label="暂停动画" aria-pressed="false" title="暂停 · Space">${svg('pause')}</button><button id="focus" aria-label="专注视图" aria-pressed="false" title="专注视图 · F">${svg('focus')}</button><button id="theme" aria-label="切换明暗外观" title="外观">${svg('sun')}</button><button id="pin" class="pin" aria-label="窗口置顶" aria-pressed="false" title="窗口置顶">${svg('pin')}</button></div></header>
 <span id="eyebrow" hidden></span><span id="scene-subtitle" hidden></span><span id="legend" hidden></span></div>
-<dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-top"><h2 id="source-title">本地事件观察器</h2><button id="close-dialog" aria-label="关闭说明">${svg('close')}</button></div><p>继续在原来的终端或客户端使用 Agent。Relay 只在本机读取会话事件，不启动模型，也不上传会话。</p><div id="source-details"></div>
+<dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-top"><h2 id="source-title">本地事件观察器</h2><button id="close-dialog" aria-label="关闭说明">${svg('close')}</button></div><p>继续在原来的终端或客户端使用 Agent。Relay 只在本机读取会话事件，不启动模型，也不上传会话。</p><form id="source-settings" aria-labelledby="source-settings-title"><fieldset disabled>
+<legend id="source-settings-title">Agent 监听设置</legend>
+<label for="agent-choice">Agent</label><select id="agent-choice" name="agent"></select>
+<label class="enable-agent"><input type="checkbox" name="enabled" role="switch"> 启用此 Agent</label>
+<span>默认位置</span><code></code>
+<label for="additional-roots">自定义会话目录（每行一个完整路径）</label>
+<textarea name="directories" id="additional-roots" rows="2" spellcheck="false" autocapitalize="off"></textarea>
+<button type="button" data-pick hidden>选择目录…</button><button type="submit">保存设置</button>
+</fieldset><p role="status"></p></form>
+<details id="source-health"><summary>各来源连接详情</summary><div id="source-details"></div></details>
+<button id="check-update" type="button" hidden>检查应用更新…</button>
 <section id="agent-hooks" aria-labelledby="hooks-title">
 <h3 id="hooks-title" lang="en">Agent Hooks</h3>
 <p>Relay 会定期读取本地事件。可选的 Hook 会在 Agent 产生事件时提醒 Relay 提前刷新。</p>
@@ -85,8 +96,8 @@ function updateSources(){
  const host=$('#source-details');host.replaceChildren();
  for(const source of snapshot.sources||[]){
   const box=document.createElement('div');box.className='source-card';
-  const top=document.createElement('div');top.className='source-heading';const title=document.createElement('strong');title.textContent=source.source.toUpperCase();
-  const status=document.createElement('span');status.textContent=source.status==='connected'?`只读监听 · ${source.files||0} 个会话文件`:source.status==='missing'?'未发现数据源':'连接异常';top.append(title,status);
+  const top=document.createElement('div');top.className='source-heading';const title=document.createElement('strong');title.textContent=source.label || source.source.toUpperCase();
+  const status=document.createElement('span');status.textContent=source.status==='connected'?`只读监听 · ${source.files||0} 个会话文件`:source.status==='disabled'?'已关闭':source.status==='missing'?'未发现数据源':'连接异常';top.append(title,status);
   const detail=document.createElement('code');detail.textContent=source.detail||'自动发现本地默认路径';
   const last=document.createElement('code');last.textContent=`最近事件：${source.lastEventAt?new Date(source.lastEventAt).toLocaleString('zh-CN'):'尚无事件'}`;
   box.append(top,detail,last);host.append(box);
@@ -113,7 +124,12 @@ document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',(
 $('#pause').addEventListener('click',()=>setPause(!paused));$('#focus').addEventListener('click',toggleFocus);$('#theme').addEventListener('click',()=>setTheme(!document.body.classList.contains('porcelain')));
 $('#pin').addEventListener('click',async()=>{if(!window.relay){showToast('置顶功能可在独立桌面窗口中使用。');return;}const v=await window.relay.pin($('#pin').getAttribute('aria-pressed')!=='true');$('#pin').setAttribute('aria-pressed',String(v));});
 const refreshHooks=createHookControls($('#agent-hooks'),window.relay?.hooks);
-const openInfo=()=>{updateSources();$('#source-dialog').showModal();refreshHooks();};$('#info').addEventListener('click',openInfo);$('#connection').addEventListener('click',openInfo);$('#close-dialog').addEventListener('click',()=>$('#source-dialog').close());
+const refreshSourceSettings=createSourceControls($('#source-settings'),window.relay?.sources);
+if(window.relay?.checkUpdate){
+ const button=$('#check-update');button.hidden=false;
+ button.onclick=async()=>{button.disabled=true;try{await window.relay.checkUpdate();}catch{showToast('暂时无法检查更新');}finally{button.disabled=false;}};
+}
+const openInfo=()=>{updateSources();$('#source-dialog').showModal();refreshHooks();refreshSourceSettings();};$('#info').addEventListener('click',openInfo);$('#connection').addEventListener('click',openInfo);$('#close-dialog').addEventListener('click',()=>$('#source-dialog').close());
 $('#session').addEventListener('change',()=>{sessionId=$('#session').value;resetScenes();lastRevision=-1;if(mode==='replay')makeReplay();else seedLiveSpools();});
 $('#replay-restart').addEventListener('click',makeReplay);$('#replay-speed').addEventListener('change',()=>replaySpeed=Number($('#replay-speed').value));
 window.addEventListener('keydown',e=>{if(e.target.matches('input,select,textarea')||$('#source-dialog').open)return;if(e.key>='1'&&e.key<='8')selectScene(defs[Number(e.key)-1][0]);else if(e.code==='Space'){e.preventDefault();setPause(!paused);}else if(e.key.toLowerCase()==='f')toggleFocus();});

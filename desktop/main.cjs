@@ -1,11 +1,11 @@
-const {app,BrowserWindow,ipcMain,Menu,session}=require('electron');
+const {app,BrowserWindow,ipcMain,Menu,session,dialog,shell}=require('electron');
 const path=require('node:path');
 const fs=require('node:fs');
 const {pathToFileURL}=require('node:url');
 const root=path.resolve(__dirname,'..');
 const dataDir=process.env.RELAY_DATA_DIR || (app.isPackaged?path.resolve(path.dirname(process.execPath),process.platform==='darwin'?'../../..':'.','RelayAtelierData'):path.join(root,'.runtime','desktop'));
 fs.mkdirSync(dataDir,{recursive:true});app.setPath('userData',dataDir);app.setPath('sessionData',dataDir);
-let win,hub;
+let win,hub,updateTimer;
 if(!app.requestSingleInstanceLock()){app.quit();}else{
  app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.focus();}});
  app.whenReady().then(async()=>{
@@ -15,9 +15,17 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
    const fixtureHome=!app.isPackaged && process.env.RELAY_HOOK_TEST_HOME;
    const hooks=createHookManager(fixtureHome ? {home:fixtureHome,env:{}} : {});
    hub=fixtureHome ? new SourceHub({roots:defaultSourceRoots(fixtureHome,{}),pulseFile:getPulseFile(fixtureHome)}) : new SourceHub();
+   const {openSourceSettings}=await import('../server/source-settings.mjs');
+   const settings=await openSourceSettings(path.join(dataDir,'sources.json'),hub);
+   const updateSession=session.fromPartition('relay-updates');
+   const checkUpdate=require('./updates.cjs').createUpdateChecker({
+     current:require('../package.json').publicReleaseVersion,dialog,shell,getWindow:()=>win,
+     fetchRelease:(url,options)=>updateSession.fetch(url,options)
+   });
+   const check=(manual=false)=>void checkUpdate(manual).catch(()=>{});
    const icon=path.join(root,'assets',process.platform==='darwin'?'Relay.iconset/icon_512x512@2x.png':'icon.png');
    if(!app.isPackaged)app.dock?.setIcon(icon);
-   Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Relay Atelier',submenu:[{role:'about'},{type:'separator'},{role:'quit'}]},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetzoom'},{role:'zoomin'},{role:'zoomout'}]}]));
+   Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Relay Atelier',submenu:[{role:'about'},{label:'检查更新…',click:()=>check(true)},{type:'separator'},{role:'quit'}]},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetzoom'},{role:'zoomin'},{role:'zoomout'}]}]));
    // All renderer resources are bundled. Deny remote requests and permissions.
    session.defaultSession.webRequest.onBeforeRequest((details,cb)=>cb({cancel:!details.url.startsWith('file:')&&!details.url.startsWith('devtools:')}));
    session.defaultSession.setPermissionRequestHandler((_wc,_permission,cb)=>cb(false));
@@ -38,18 +46,31 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
    ipcMain.handle('relay:pin',(_e,value)=>{if(win)win.setAlwaysOnTop(value===true);return win?.isAlwaysOnTop()||false;});
    ipcMain.handle('relay:window',()=>({desktop:true,pinned:win?.isAlwaysOnTop()||false,platform:process.platform}));
    const entryURL=pathToFileURL(path.join(root,'index.html')).href;
+   function trusted(event){
+     if(!win || event.sender!==win.webContents || event.senderFrame!==win.webContents.mainFrame || event.senderFrame.url!==entryURL){
+       throw new Error('仅支持本地桌面窗口。');
+     }
+   }
+   ipcMain.handle('relay:sources:list',event=>{trusted(event);return settings.list();});
+   ipcMain.handle('relay:sources:save',(event,id,value)=>{trusted(event);return settings.save(id,value);});
+   ipcMain.handle('relay:sources:pick',async event=>{
+     trusted(event);
+     const result=await dialog.showOpenDialog(win,{title:'选择会话目录',properties:['openDirectory','multiSelections']});
+     return result.canceled ? [] : result.filePaths;
+   });
+   ipcMain.handle('relay:updates:check',event=>{trusted(event);return checkUpdate(true);});
    for(const action of ['list','install','remove']){
      ipcMain.handle('relay:hooks:'+action,(event,id)=>{
-       if(!win || event.sender!==win.webContents || event.senderFrame!==win.webContents.mainFrame || event.senderFrame.url!==entryURL){
-         throw new Error('仅支持在 Relay Atelier 的本地桌面窗口管理 Hook。');
-       }
+       trusted(event);
        return hooks[action](id);
      });
    }
    hub.on('event',event=>{if(win&&!win.isDestroyed())win.webContents.send('relay:event',event);});
    hub.on('status',status=>{if(win&&!win.isDestroyed())win.webContents.send('relay:status',status);});
    await hub.start();create();
+   win.once('show',()=>check());
+   updateTimer=setInterval(()=>check(),24*60*60*1000);updateTimer.unref();
    app.on('activate',()=>{if(!win)create();});
  }).catch(error=>{console.error(error);app.quit();});
- app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>hub?.stop());
+ app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{clearInterval(updateTimer);hub?.stop();});
 }

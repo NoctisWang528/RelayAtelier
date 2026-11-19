@@ -2,6 +2,38 @@
 
 Initially verified on 2026-11-17 and reviewed again on 2026-11-18 against local session files and the existing OpenCode database. Evidence below contains structural counts and version metadata only. The adapters do not run agents, call model APIs, install hooks, or change agent configuration. Backend probes do not open credential/config/auth files. Prompts, raw arguments, tool output, user-assigned titles, and full target paths are never returned to the renderer or printed by the probes.
 
+## Agent session locations
+
+同一套读取器用于 Windows 和 macOS。表中的 `~` 对应操作系统的用户主目录，`<应用数据>` 在 macOS 为 `~/Library/Application Support`，在 Windows 为 `%APPDATA%`。`<数据>` 为 `$XDG_DATA_HOME` 或 `~/.local/share`。会话均以只读方式打开。
+
+| Agent | 默认位置 | 文件与事件 |
+| --- | --- | --- |
+| Codex | `~/.codex/sessions` | rollout JSONL |
+| Claude Code | `~/.claude/projects` | 工具与子代理 JSONL |
+| OpenCode | `<数据>/opencode/opencode.db` | SQLite 工具部件 |
+| Gemini CLI | `~/.gemini/tmp` | `session-*.json` 和 `session-*.jsonl` 中的 toolCalls |
+| GitHub Copilot CLI | `~/.copilot/session-state` | `events.jsonl` 中的工具开始与结果 |
+| Qwen Code | `~/.qwen/projects` | 聊天 JSONL 中的 functionCall / functionResponse |
+| Kimi CLI / Code | `~/.kimi/sessions`、`~/.kimi-code/sessions`、`<应用数据>/kimi-desktop/daimon-share/daimon/runtime/kimi-code/home/sessions` | `wire.jsonl` 中的 ToolCall / ToolResult |
+| Pi | `~/.pi/agent/sessions` | Pi 消息 JSONL |
+| Oh My Pi | `~/.omp/agent/sessions` | Pi 消息 JSONL |
+| OmO Native / SenPi | `~/.senpi/agent/sessions`、`~/.omo/agent/sessions`、`~/.omo/senpi-task/children` | Pi 消息 JSONL，项目中的子会话目录也可手动添加 |
+| OpenClaw | `~/.openclaw/agents` | 会话内的 toolCall / toolResult |
+| Factory Droid | `~/.factory/sessions` | 会话头与包含工具块的 message 记录 |
+| CodeBuddy Code | `~/.codebuddy/projects` | CLI 会话 JSONL |
+| WorkBuddy | `~/.workbuddy/projects`、`~/.workbuddy-ai/projects` | function_call / function_call_result |
+| DeepSeek Harness | `~/.dsh/sessions` | 普通或多帧 Zstandard 压缩的 `session.jsonl` |
+| Cline | `<应用数据>/Code/User/globalStorage/saoudrizwan.claude-dev/tasks`、`~/.cline/data/{tasks,sessions}` | `api_conversation_history.json` 和 `*.messages.json` 中的原生工具块 |
+| Kilo Code | `<应用数据>/Code/User/globalStorage/kilocode.kilo-code/tasks`、`<数据>/kilo/kilo.db` | 扩展的 API 历史 JSON 和 CLI 的 SQLite 工具部件 |
+| MiMo Code / Desktop | `<数据>/mimocode/mimocode.db`，macOS 也查找 `<应用数据>/orca/mimocode-hooks/shared/data/mimocode.db` | 两个客户端共用的 SQLite 工具部件 |
+| Reasonix | Windows 的 `<应用数据>/reasonix`、macOS 的 `~/.reasonix` 下的 `sessions` 与 `projects/*/sessions` | 带 tool_calls / tool_call_id 的原始消息及 v1 append / replace 消息记录 |
+| Cherry Studio Agents | `<应用数据>/CherryStudio/Data/Agents/.claude/projects`、`<应用数据>/CherryStudio/.claude/projects` | 内置 Agent 的 Claude SDK 会话 |
+| Proma | `~/.proma/sdk-config/{projects,sessions}` 和 `~/.proma-dev/sdk-config/{projects,sessions}` | Claude SDK 和 Pi 原生会话 |
+
+应用面板显示本机解析后的默认位置。新增目录与默认目录合并，同一来源的重叠目录按文件去重。数据库来源可添加包含对应数据库的文件夹。关闭某个 Agent 会停止读取并释放文件缓冲及数据库连接，此前读到的历史在本次运行中仍可回放。
+
+JSON 快照和压缩会话按文件变化重读，单个快照及解压内容上限为 16 MiB。Cline、Kilo 扩展或 Reasonix 消息未带时间时使用快照更新时间或文件修改时间，精度为一次保存。结果仅含正文、缺少明确成功或失败标志时，状态为未知。路径线索来自 token-monitor 的来源目录表。测试使用各格式的会话样例，另在 macOS 对 WorkBuddy、DeepSeek Harness、MiMo 和 Reasonix 做了真实历史读取。
+
 ## Interface and integration
 
 `server/hub.mjs` exports `SourceHub extends EventEmitter`:
@@ -16,7 +48,7 @@ hub.stop();
 ```
 
 - `start()` is asynchronous and idempotent. `stop()` clears polling and closes SQLite; an in-flight file read may finish without emitting further events. Starting again seeds any backlog silently.
-- With no `roots` argument, Codex uses its sessions directory, Claude its projects directory, and OpenCode its standard local database. An explicit `roots` object enables **only** the named sources: `{codex: fixtureDir, claude: fixtureDir, opencode: fixtureDbOrDirectory}`. Omitted/null roots stay `missing`; tests cannot accidentally fall back to real user sources.
+- With no `roots` argument the hub discovers the catalogued locations above. An explicit `roots` object enables **only** the named sources: `{codex: fixtureDir, claude: fixtureDir, opencode: fixtureDbOrDirectory}`. Omitted/null roots stay `missing`; tests cannot accidentally fall back to real user sources.
 - `snapshot()` returns detached copies of `{events, sources, sessions, revision}`. `events` contains at most 4,000 recent transitions, sorted by ISO timestamp with stable observation order for ties. Reconstructed starts precede their finishes; equal-time pending→running and started→waiting transitions retain their actual observation order. It is replay history, not a Live stream.
 - Source descriptors are `{source,status,files,lastEventAt,detail}`. Status is `connected`, `missing`, or `error`; `files` counts selected JSONL files or one database. Details disclose skipped history, malformed records, and unsupported SQLite/runtime errors without including paths or exception text.
 - Session descriptors are `{id,source,agentId,parentAgentId,label,lastEventAt}`. **`session.id` exactly matches `event.sessionId`.** Session/agent identities are source-prefixed: `codex:<thread>`, `opencode:<session>`, and `claude:<session>[:<child-agent>]`. Labels are generic source names plus short hashes, not session titles. Null parent means no parent was established.

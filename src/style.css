@@ -31,3 +31,17 @@
 #agent-hooks button { border-color: #bcb19f; margin: 7px 7px 0 0; }
 #agent-hooks button:disabled { opacity: .55; cursor: wait; }
 #hook-status:not(:empty) { margin-top: 8px; overflow-wrap: anywhere; }
+
+#source-settings { margin-block: 1rem; }
+#source-settings fieldset { min-width: 0; padding: 12px; border: 1px solid #cfc5b3; border-radius: 6px; }
+#source-settings legend, #source-health summary { font-weight: 700; }
+#source-settings label, #source-settings fieldset > span { display: block; margin-block: 9px 4px; font-size: 12px; }
+#source-settings select, #source-settings textarea { width: 100%; font: inherit; padding: 5px; }
+#source-settings textarea { resize: vertical; }
+#source-settings code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
+#source-settings button, #check-update { margin: 8px 6px 0 0; }
+#source-settings input { accent-color: #46683f; }
+#source-settings :focus-visible { outline: 2px solid #526743; outline-offset: 2px; }
+#source-settings [role=status] { color: #655e51; }
+#source-health, #check-update { margin-bottom: 12px; }
+#source-health summary { cursor: pointer; }

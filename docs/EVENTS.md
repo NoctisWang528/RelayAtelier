@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `id` | string | 标识一次状态过渡，供传输重试和重复读取时去重。 |
 | `callId` | string | 同一次工具调用的关联标识，从开始到后续状态保持稳定。 |
-| `source` | string | 真实来源为 `codex`、`claude`、`opencode`，内置样例用 `demo`。Replay 保留原来源。 |
+| `source` | string | 真实来源使用来源目录表中的稳定 ID，内置样例用 `demo`。Replay 保留原来源。 |
 | `sessionId` | string | 规范化的会话标识，用于筛选及区分不同作用域内的调用。 |
 | `agentId`、`parentAgentId` | string、string 或 null | 执行者和已知父代理；没有可靠父关系时用 null。 |
 | `timestamp` | ISO 时间字符串 | UTC 事件时间。适配器无法解析时间时使用 Unix epoch；不能从该值推断实际开始时刻。 |

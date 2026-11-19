@@ -1,13 +1,16 @@
 import { EventEmitter } from 'node:events';
 import { watchFile, unwatchFile } from 'node:fs';
 import { open, readdir, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { zstdDecompress } from 'node:zlib';
+import { promisify } from 'node:util';
+import { basename, dirname, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { agentId, normalizeClaude, normalizeCodex, normalizeOpenCode } from './adapters.mjs';
+import { agentId, normalizeRecord, normalizeOpenCode } from './adapters.mjs';
 import { getPulseFile } from './hook-signal.mjs';
 
-const SOURCES = ['codex', 'claude', 'opencode'];
+import { sources, defaultSourceRoots, databaseNames, matchesSessionFile } from './source-catalog.mjs';
+export { defaultSourceRoots };
+const decompress = promisify(zstdDecompress);
 const MAX_LINE = 16 * 1024 * 1024;
 const FILE_BYTES = 4 * 1024 * 1024;
 const SOURCE_BYTES = 32 * 1024 * 1024;
@@ -58,7 +61,7 @@ export class JsonlTail {
           if (end !== -1) {
             let first;
             try { first = JSON.parse(decode.decode(header.subarray(0, end))); } catch { /* bounded metadata probe */ }
-            if (first?.type === 'session_meta') onRecord(first);
+            if (['session_meta', 'session', 'session.start', 'session_start'].includes(first?.type)) onRecord(first);
             else if (first?.sessionId) onRecord({ sessionId: first.sessionId, agentId: first.agentId });
           }
         }
@@ -82,7 +85,7 @@ export class JsonlTail {
           if (!this.skipping && line.length <= MAX_LINE && line.length) {
             let record;
             try { record = JSON.parse(decode.decode(line)); } catch { this.malformed++; }
-            if (record && typeof record === 'object') onRecord(record);
+            if (record && typeof record === 'object') onRecord(record, info.mtimeMs);
           } else if (!this.skipping && line.length > MAX_LINE) this.malformed++;
           this.skipping = false;
           start = newline + 1;
@@ -101,32 +104,86 @@ export class JsonlTail {
   }
 }
 
-async function jsonlFiles(root) {
-  const files = [];
-  let directories = 0, limited = false;
+async function sessionFiles(roots, source) {
+  const files = new Set();
+  let directories = 0, limited = false, readErrors = 0;
+  const visited = new Set();
   async function visit(directory) {
+    if (visited.has(directory)) return;
+    visited.add(directory);
     if (++directories > 512) { limited = true; return; }
-    const entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) => b.name.localeCompare(a.name));
+    let entries;
+    try { entries = await readdir(directory, { withFileTypes: true }); }
+    catch (error) { if (!missing(error)) readErrors++; return; }
+    entries.sort((a, b) => b.name.localeCompare(a.name));
     for (const entry of entries) {
-      if (files.length >= 2048) { limited = true; return; }
+      if (source === 'reasonix' && (entry.name.startsWith('.') ||
+          (roots.includes(dirname(directory)) && basename(dirname(directory)) === 'projects' && entry.name !== 'sessions'))) continue;
+      if (files.size >= 2048) { limited = true; return; }
       const path = join(directory, entry.name);
       if (entry.isDirectory()) await visit(path);
-      else if (entry.isFile() && entry.name.endsWith('.jsonl')) files.push(path);
+      else if (entry.isFile() && matchesSessionFile(source, entry.name)) files.add(path);
     }
   }
-  await visit(root);
-  const dated = await Promise.all(files.map(async path => {
-    try { return { path, modified: (await stat(path)).mtimeMs }; } catch (error) { if (!missing(error)) throw error; return null; }
+  for (const root of roots) await visit(root);
+  const dated = await Promise.all([...files].map(async path => {
+    try { return { path, modified: (await stat(path)).mtimeMs }; } catch (error) { if (!missing(error)) readErrors++; return null; }
   }));
-  return { paths: dated.filter(Boolean).sort((a, b) => b.modified - a.modified || a.path.localeCompare(b.path)).slice(0, MAX_FILES).map(file => file.path), discovered: files.length, limited };
+  return { paths: dated.filter(Boolean).sort((a, b) => b.modified - a.modified || a.path.localeCompare(b.path)).slice(0, MAX_FILES).map(file => file.path), discovered: files.size, limited, readErrors };
 }
 
-export function defaultSourceRoots(home = homedir(), env = process.env) {
-  return {
-    codex: join(env.CODEX_HOME || join(home, '.codex'), 'sessions'),
-    claude: join(env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'projects'),
-    opencode: join(env.XDG_DATA_HOME || join(home, '.local', 'share'), 'opencode', 'opencode.db'),
-  };
+// JSON snapshots are rewritten as a whole. Parse only complete bounded reads
+// and retry partial writes on the next poll. Cache identity, never the raw body.
+class SnapshotFile {
+  constructor(path) {
+    this.path = path;
+    this.bytesRead = this.malformed = this.skippedBytes = 0;
+  }
+  async read(consume, { maxBytes }) {
+    const file = await open(this.path, 'r');
+    try {
+      const info = await file.stat();
+      const stamp = [fingerprint(info), info.size, info.mtimeMs, info.ctimeMs].join(':');
+      if (this.stamp === stamp) return;
+      if (info.size > maxBytes) { this.skippedBytes = info.size; return; }
+      const buffer = Buffer.alloc(info.size);
+      let offset = 0;
+      while (offset < buffer.length) {
+        const { bytesRead } = await file.read(buffer, offset, buffer.length - offset, offset);
+        if (!bytesRead) return;
+        offset += bytesRead;
+      }
+      this.bytesRead += offset;
+      this.skippedBytes = this.malformed = 0;
+      if (this.path.endsWith('.zstd')) {
+        // DSH appends independent Zstandard frames. Node may stop after one.
+        const chunks = [];
+        let position = 0, total = 0;
+        while (position < buffer.length && total < MAX_LINE) {
+          try {
+            const frame = await decompress(buffer.subarray(position), { info: true, maxOutputLength: MAX_LINE - total });
+            if (!frame.engine.bytesWritten) break;
+            chunks.push(frame.buffer);
+            total += frame.buffer.length;
+            position += frame.engine.bytesWritten;
+          } catch { this.malformed++; break; }
+        }
+        if (position < buffer.length) this.skippedBytes = buffer.length - position;
+        const raw = decode.decode(Buffer.concat(chunks, total));
+        for (const line of raw.split('\n')) {
+          if (!line.trim()) continue;
+          let record;
+          try { record = JSON.parse(line); } catch { this.malformed++; continue; }
+          consume(record);
+        }
+      } else {
+        let record;
+        try { record = JSON.parse(decode.decode(buffer)); } catch { this.malformed = 1; return; }
+        consume(record, info.mtimeMs);
+      }
+      this.stamp = stamp;
+    } finally { await file.close(); }
+  }
 }
 
 export class SourceHub extends EventEmitter {
@@ -144,7 +201,9 @@ export class SourceHub extends EventEmitter {
     this._tails = new Map();
     this._contexts = new Map();
     this._scans = new Map();
-    this._sources = new Map(SOURCES.map(source => [source, { source, status: 'missing', files: 0, lastEventAt: null, detail: 'Not started' }]));
+    this.settings = {};
+    this._databases = new Map();
+    this._sources = new Map(Object.keys(sources).map(source => [source, { source, label: sources[source], status: 'missing', files: 0, lastEventAt: null, detail: 'Not started' }]));
   }
 
   async start() {
@@ -182,7 +241,7 @@ export class SourceHub extends EventEmitter {
       unwatchFile(this.pulseFile, this._onPulse);
       this._onPulse = null;
     }
-    this._closeDatabase();
+    for (const path of this._databases.keys()) this._closeDatabase(path);
   }
 
   snapshot() {
@@ -210,7 +269,7 @@ export class SourceHub extends EventEmitter {
     const session = {
       id, source: context.source, agentId: context.agentId,
       parentAgentId: this._parents.get(context.agentId) ?? context.parentAgentId ?? null,
-      label: `${context.source === 'codex' ? 'Codex' : context.source === 'claude' ? 'Claude' : 'OpenCode'} ${opaque(id).slice(0, 6)}`,
+      label: `${sources[context.source]} ${opaque(id).slice(0, 6)}`,
       lastEventAt: previous?.lastEventAt ?? null,
     };
     if (JSON.stringify(previous) !== JSON.stringify(session)) { this._sessions.set(id, session); this.revision++; }
@@ -242,22 +301,25 @@ export class SourceHub extends EventEmitter {
   async _readSources(initial) {
     const revision = this.revision;
     this._seededHistory = false;
-    for (const source of SOURCES) {
+    for (const source of Object.keys(sources)) {
       if (!this._running) break;
-      const root = this.roots[source];
-      if (!root) { this._source(source, { status: 'missing', files: 0, detail: 'Source root not configured' }); continue; }
+      const setting = this.settings[source];
+      if (setting?.enabled === false) {
+        this._source(source, { status: 'disabled', files: 0, detail: '已关闭监听' });
+        continue;
+      }
+      const roots = [...new Set([].concat(this.roots[source] ?? [], setting?.directories ?? []).map(root => resolve(root)))];
       const live = !initial && this._sources.get(source).status === 'connected';
       try {
-        if (source === 'opencode') await this._readDatabase(root, live);
-        else await this._readJsonl(source, root, live);
+        const readers = [];
+        if (databaseNames[source]) readers.push(await this._readDatabases(source, roots, live));
+        if (!databaseNames[source] || source === 'kilo') readers.push(await this._readJsonl(source, roots.filter(root => !root.endsWith('.db')), live));
+        const files = readers.reduce((sum, reader) => sum + reader.files, 0);
+        const status = files ? 'connected' : readers.some(reader => reader.status === 'error') ? 'error' : 'missing';
+        this._source(source, { files, status, detail: readers.map(reader => reader.detail).join(' · ') });
       } catch (error) {
-        if (source === 'opencode') this._closeDatabase();
-        this._source(source, {
-          status: missing(error) ? 'missing' : 'error', files: 0,
-          detail: missing(error) ? 'Source not found; retrying' : error?.code === 'SQLITE_UNAVAILABLE'
-            ? 'OpenCode blocked: node:sqlite is unavailable in this runtime; retrying'
-            : 'Read failed or unsupported source schema; retrying',
-        });
+        this._source(source, { status: missing(error) ? 'missing' : 'error', files: 0,
+          detail: missing(error) ? 'Source not found; retrying' : 'Read failed or unsupported source schema; retrying' });
       }
     }
     if (!this._running) return;
@@ -276,97 +338,152 @@ export class SourceHub extends EventEmitter {
     }
   }
 
-  async _readJsonl(source, root, live) {
-    const info = await stat(root);
+  async configure(settings) {
+    await this._busy;
+    for (const source of Object.keys(sources)) {
+      if (JSON.stringify(this.settings[source]) === JSON.stringify(settings[source])) continue;
+      this._scans.delete(source);
+      for (const key of this._tails.keys()) if (key.startsWith(source + '\0')) this._tails.delete(key);
+      for (const [key, entry] of this._databases) if (entry.source === source) this._closeDatabase(key);
+      // Re-enabled or newly selected history must not animate as fresh activity.
+      this._source(source, { status: 'missing' });
+    }
+    this.settings = settings;
+    await this._poll();
+  }
+
+  async _readJsonl(source, roots, live) {
+    const available = [];
+    const mtimes = [];
+    let errors = 0;
+    for (const root of roots) {
+      try {
+        const info = await stat(root);
+        if (!info.isDirectory()) { errors++; continue; }
+        available.push(root);
+        mtimes.push(root, info.mtimeMs);
+      } catch (error) { if (!missing(error)) errors++; }
+    }
+    const stamp = JSON.stringify(mtimes);
     let scan = this._scans.get(source);
-    if (!scan || scan.root !== root || scan.modified !== info.mtimeMs || Date.now() >= scan.next || !live) {
-      scan = { ...await jsonlFiles(root), root, modified: info.mtimeMs, next: Date.now() + 5000 };
+    if (!scan || scan.stamp !== stamp || Date.now() >= scan.next) {
+      scan = { ...await sessionFiles(available, source), stamp, next: Date.now() + 5000 };
       this._scans.set(source, scan);
-      const selected = new Set(scan.paths);
-      for (const path of this._tails.keys()) {
-        if (this._contexts.get(path)?.source === source && !selected.has(path)) this._tails.delete(path);
+      const selected = new Set(scan.paths.map(path => source + '\0' + path));
+      for (const key of this._tails.keys()) {
+        if (key.startsWith(source + '\0') && !selected.has(key)) this._tails.delete(key);
       }
     }
     const { paths } = scan;
+    errors += scan.readErrors;
+    let readable = 0;
     let malformed = 0, skippedBytes = 0, budget = SOURCE_BYTES;
     for (const path of paths) {
       if (!this._running) return;
-      let tail = this._tails.get(path);
-      if (!tail) { tail = new JsonlTail(path); this._tails.set(path, tail); }
-      let context = this._contexts.get(path);
+      const key = source + '\0' + path;
+      let tail = this._tails.get(key);
+      if (!tail) {
+        tail = path.endsWith('.jsonl') ? new JsonlTail(path) : new SnapshotFile(path);
+        this._tails.set(key, tail);
+      }
+      let context = this._contexts.get(key);
       if (!context) {
         const filename = basename(path, '.jsonl');
-        context = { sessionId: source === 'codex' ? filename.match(/[a-f\d-]{36}$/i)?.[0] ?? opaque(path) : filename, parents: this._parents, agentStates: this._agentStates };
-        if (source === 'claude' && basename(dirname(path)) === 'subagents') {
+        const fallback = source === 'codex' ? filename.match(/[a-f\d-]{36}$/i)?.[0] : source === 'claude' ? filename : null;
+        const identityPath = source === 'reasonix' ? path.replace(/\.events\.jsonl$/, '.jsonl') : path;
+        context = { sessionId: fallback ?? opaque(identityPath), parents: this._parents, agentStates: this._agentStates };
+        if (['claude', 'cherry', 'proma'].includes(source) && basename(dirname(path)) === 'subagents') {
           context.sessionId = basename(dirname(dirname(path)));
           context.childId = basename(path, '.jsonl').replace(/^agent-/, '');
         }
-        this._contexts.set(path, context);
+        this._contexts.set(key, context);
       }
       try {
         const before = tail.bytesRead;
-        await tail.read(record => {
-          const events = source === 'codex' ? normalizeCodex(record, context) : normalizeClaude(record, context);
-          this._session(context);
+        await tail.read((record, fileTime) => {
+          context.fileTime = fileTime;
+          const events = normalizeRecord(source, record, context);
+          if (events.length || source === 'codex' || source === 'claude') this._session(context);
           this._accept(events, live);
-        }, { maxBytes: Math.min(FILE_BYTES, budget) });
+        }, { maxBytes: Math.min(tail instanceof SnapshotFile ? MAX_LINE : FILE_BYTES, budget) });
+        readable++;
         budget = Math.max(0, budget - (tail.bytesRead - before));
-      } catch (error) { if (!missing(error)) throw error; }
+      } catch (error) { if (!missing(error)) errors++; }
       malformed += tail.malformed;
       skippedBytes += tail.skippedBytes;
     }
-    this._source(source, {
-      status: paths.length ? 'connected' : 'missing', files: paths.length,
-      detail: paths.length ? `Read-only JSONL; watching ${paths.length}/${scan.discovered}${scan.limited ? '+' : ''} discovered files; ${skippedBytes} historical/backlog bytes skipped; ${malformed} malformed/oversized records skipped` : 'No session JSONL files; rescanning',
-    });
+    return {
+      status: readable ? 'connected' : errors ? 'error' : 'missing', files: readable,
+      detail: paths.length ? `Read-only; watching ${paths.length}/${scan.discovered}${scan.limited ? '+' : ''} discovered files; ${skippedBytes} historical/backlog bytes skipped; ${malformed} malformed/oversized records skipped; ${errors} read errors` : errors ? 'Read failed; retrying' : 'No session files; rescanning',
+    };
   }
 
-  _closeDatabase() {
-    this._db?.close();
-    this._db = null;
-    this._dbIdentity = null;
-    this._dbVersion = null;
+  _closeDatabase(path) {
+    this._databases.get(path)?.db.close();
+    this._databases.delete(path);
   }
 
-  async _readDatabase(root, live) {
-    const path = root.endsWith('.db') ? root : join(root, 'opencode.db');
+  async _readDatabases(source, roots, live) {
+    const paths = new Set(roots.map(root => root.endsWith('.db') ? root : join(root, databaseNames[source])));
+    let files = 0, errors = 0, unavailable = false;
+    for (const path of paths) {
+      const key = source + '\0' + path;
+      try {
+        await this._readDatabase(source, path, key, live);
+        files++;
+      } catch (error) {
+        this._closeDatabase(key);
+        if (!missing(error)) errors++;
+        if (error.code === 'SQLITE_UNAVAILABLE') unavailable = true;
+      }
+    }
+    return { status: files ? 'connected' : errors ? 'error' : 'missing', files,
+      detail: unavailable ? `${sources[source]} blocked: node:sqlite is unavailable in this runtime; retrying`
+        : files ? `Read-only SQLite; ${files} databases; ${errors} read errors`
+          : errors ? 'Read failed or unsupported source schema; retrying' : 'Source not found; retrying' };
+  }
+
+  async _readDatabase(source, path, key, live) {
     const info = await stat(path);
-    if (!this._db || this._dbIdentity !== fingerprint(info)) {
-      this._closeDatabase();
+    let entry = this._databases.get(key);
+    if (!entry || entry.identity !== fingerprint(info)) {
+      this._closeDatabase(key);
       let DatabaseSync;
       try { ({ DatabaseSync } = await import('node:sqlite')); }
       catch { throw Object.assign(new Error('SQLite unavailable'), { code: 'SQLITE_UNAVAILABLE' }); }
-      if (typeof DatabaseSync !== 'function') throw Object.assign(new Error('SQLite unavailable'), { code: 'SQLITE_UNAVAILABLE' });
       if (!this._running) return;
-      this._db = new DatabaseSync(path, { readOnly: true });
-      this._dbIdentity = fingerprint(info);
-      this._dbTables = new Set(this._db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session', 'session_v2', 'part', 'session_message')").all().map(row => row.name));
-      if (!this._dbTables.has('part') && !this._dbTables.has('session_message')) throw new Error('Unsupported schema');
+      const db = new DatabaseSync(path, { readOnly: true });
+      entry = { source, db, identity: fingerprint(info) };
+      this._databases.set(key, entry);
+      entry.tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session', 'session_v2', 'part', 'session_message')").all().map(row => row.name));
+      if (!entry.tables.has('part') && !entry.tables.has('session_message')) throw new Error('Unsupported schema');
+      live = false;
     }
-    const version = this._db.prepare('PRAGMA data_version').get().data_version;
-    if (version === this._dbVersion) return;
+    const { db, tables } = entry;
+    const version = db.prepare('PRAGMA data_version').get().data_version;
+    if (version === entry.version) return;
     // Read a coherent snapshot, including the WAL, without opening any writable connection.
-    this._db.exec('BEGIN');
+    db.exec('BEGIN');
     try {
       for (const table of ['session', 'session_v2']) {
-        if (!this._dbTables.has(table)) continue;
-        for (const row of this._db.prepare(`SELECT id, parent_id FROM ${table}`).all()) {
-          const context = this._databaseContext(row.id);
-          context.parentAgentId = row.parent_id ? agentId('opencode', row.parent_id) : null;
+        if (!tables.has(table)) continue;
+        for (const row of db.prepare(`SELECT id, parent_id FROM ${table}`).all()) {
+          const context = this._databaseContext(source, row.id);
+          context.parentAgentId = row.parent_id ? agentId(source, row.parent_id) : null;
           if (context.parentAgentId) this._parents.set(context.agentId, context.parentAgentId);
           this._session(context);
         }
       }
       const consume = (row, part) => {
-        const context = this._databaseContext(row.session_id);
+        const context = this._databaseContext(source, row.session_id);
         context.recordKey = row.id;
         context.timestamp = row.time_updated;
         this._session(context);
         this._accept(normalizeOpenCode(part, context), live);
       };
       // Project only tool records. Prompts, titles, text, reasoning and result bodies are not selected.
-      if (this._dbTables.has('part')) {
-        const rows = this._db.prepare(`SELECT id, session_id, time_updated,
+      if (tables.has('part')) {
+        const rows = db.prepare(`SELECT id, session_id, time_updated,
           json_extract(data, '$.callID') AS call_id, json_extract(data, '$.tool') AS tool,
           json_extract(data, '$.state.status') AS status, json_extract(data, '$.state.input') AS input,
           json_extract(data, '$.state.time') AS time, json_extract(data, '$.state.metadata.exit') AS exit,
@@ -376,8 +493,8 @@ export class SourceHub extends EventEmitter {
           status: row.status, input: JSON.parse(row.input ?? '{}'), time: JSON.parse(row.time ?? '{}'), metadata: { exit: row.exit, exit_code: row.exit_code },
         } });
       }
-      if (this._dbTables.has('session_message')) {
-        const rows = this._db.prepare(`SELECT m.id, m.session_id, m.time_updated,
+      if (tables.has('session_message')) {
+        const rows = db.prepare(`SELECT m.id, m.session_id, m.time_updated,
           json_extract(p.value, '$.id') AS call_id, json_extract(p.value, '$.name') AS tool,
           json_extract(p.value, '$.state.status') AS status, json_extract(p.value, '$.state.input') AS input,
           json_extract(p.value, '$.time') AS time, json_extract(p.value, '$.state.metadata.exit') AS exit,
@@ -388,15 +505,14 @@ export class SourceHub extends EventEmitter {
           status: row.status, input: JSON.parse(row.input ?? '{}'), metadata: { exit: row.exit, exit_code: row.exit_code },
         } });
       }
-      this._db.exec('COMMIT');
-      this._dbVersion = version;
-      this._source('opencode', { status: 'connected', files: 1, detail: 'Read-only SQLite; legacy and v2 tool records; transient states between polls may be unobserved' });
-    } catch (error) { this._db.exec('ROLLBACK'); throw error; }
+      db.exec('COMMIT');
+      entry.version = version;
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
 
-  _databaseContext(sessionId) {
-    const key = `sqlite:${sessionId}`;
-    if (!this._contexts.has(key)) this._contexts.set(key, { source: 'opencode', sourceSessionId: sessionId, sessionId: agentId('opencode', sessionId), agentId: agentId('opencode', sessionId), parents: this._parents, agentStates: this._agentStates });
+  _databaseContext(source, sessionId) {
+    const key = `sqlite:${source}:${sessionId}`;
+    if (!this._contexts.has(key)) this._contexts.set(key, { source, sourceSessionId: sessionId, sessionId: agentId(source, sessionId), agentId: agentId(source, sessionId), parents: this._parents, agentStates: this._agentStates });
     return this._contexts.get(key);
   }
 }

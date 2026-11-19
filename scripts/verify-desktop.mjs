@@ -6,7 +6,7 @@ const app=await electron.launch({...(process.env.RELAY_EXECUTABLE?{executablePat
 const report={checks:[],errors:[]};const check=(name,detail)=>{report.checks.push({name,passed:true,detail});console.log('PASS',name);};
 try{
  const window=await app.firstWindow();window.on('pageerror',e=>report.errors.push(e.message));await window.waitForFunction(()=>window.relayDiagnostics?.().connected,null,{timeout:45000});
- await window.waitForTimeout(1500);const real=await window.evaluate(()=>window.relayDiagnostics());assert.equal(real.mode,'live');assert.equal(real.sources.filter(s=>s.status==='connected').length,3);check('native macOS window loads all three actual sources',real);
+ await window.waitForTimeout(1500);const real=await window.evaluate(()=>window.relayDiagnostics());assert.equal(real.mode,'live');assert.ok(['codex','claude','opencode'].every(id=>real.sources.some(s=>s.source===id && s.status==='connected')));check('native macOS window loads the original three sources',real);
  await window.screenshot({path:`${out}/desktop-live.png`});
  await window.locator('#pin').click();assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isAlwaysOnTop()),true);await window.locator('#pin').click();check('native always-on-top toggles and reads back');
  const security=await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];const p=w.webContents.getLastWebPreferences();return{sandbox:p.sandbox,contextIsolation:p.contextIsolation,nodeIntegration:p.nodeIntegration,url:w.webContents.getURL()};});assert.equal(security.sandbox,true);assert.equal(security.contextIsolation,true);assert.equal(security.nodeIntegration,false);check('sandboxed renderer with local file entry',security);

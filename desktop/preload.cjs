@@ -3,6 +3,12 @@ contextBridge.exposeInMainWorld('relay',{
  snapshot:()=>ipcRenderer.invoke('relay:snapshot'),
  pin:value=>ipcRenderer.invoke('relay:pin',value===true),
  windowInfo:()=>ipcRenderer.invoke('relay:window'),
+ sources:{
+  list:()=>ipcRenderer.invoke('relay:sources:list'),
+  save:(id,value)=>ipcRenderer.invoke('relay:sources:save',id,value),
+  pick:()=>ipcRenderer.invoke('relay:sources:pick'),
+ },
+ checkUpdate:()=>ipcRenderer.invoke('relay:updates:check'),
  hooks:{
   list:()=>ipcRenderer.invoke('relay:hooks:list'),
   install:id=>ipcRenderer.invoke('relay:hooks:install',id),

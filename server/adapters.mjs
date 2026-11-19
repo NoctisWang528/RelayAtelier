@@ -16,8 +16,8 @@ export const agentId = (source, session, child) => `${source}:${identifier(sessi
 
 export function toolType(tool) {
   const t = tool.toLowerCase().split(/[.:]/).at(-1);
-  if (/^(bash|shell|exec_command|commandexecution|write_stdin|terminal)$/.test(t)) return 'shell';
-  if (/^(read|write|edit|multiedit|apply_patch|view_image|imageview|filechange)$/.test(t)) return 'files';
+  if (/^(bash|shell|execute|execute_command|run_shell_command|commandexecution|exec_command|write_stdin|terminal)$/.test(t)) return 'shell';
+  if (/^(read|write|edit|read_file|write_file|write_to_file|replace_in_file|multiedit|apply_patch|view_image|imageview|filechange)$/.test(t)) return 'files';
   if (/^(grep|glob|search|ripgrep)$/.test(t)) return 'search';
   if (/^(agent|task|spawn_agent|wait|close_agent|send_input|send_message|list_agents|taskoutput)$/.test(t)) return 'agents';
   if (/web|fetch|browser|navigate/.test(t)) return 'web';
@@ -187,12 +187,12 @@ export function normalizeCodex(record, context = {}) {
   return events;
 }
 
-export function normalizeClaude(record, context = {}) {
+export function normalizeClaude(record, context = {}, source = 'claude') {
   if (!record || typeof record !== 'object') return [];
   if (!Object.hasOwn(context, 'fileChildId')) context.fileChildId = context.childId ?? null;
   context.childId = record.agentId ? identifier(record.agentId) : context.fileChildId;
-  setup(context, 'claude', record.sessionId);
-  if (context.childId) context.parentAgentId = context.parents.get(context.agentId) ?? agentId('claude', context.sourceSessionId);
+  setup(context, source, record.sessionId);
+  if (context.childId) context.parentAgentId = context.parents.get(context.agentId) ?? agentId(source, context.sourceSessionId);
   else context.parentAgentId = null;
   const content = record.message?.content;
   if (!Array.isArray(content)) return [];
@@ -201,7 +201,7 @@ export function normalizeClaude(record, context = {}) {
     if (block?.type === 'tool_use') events.push(...transition(context, block.id, 'started', record.timestamp, block.name, object(block.input)));
     if (block?.type === 'tool_result') {
       const result = object(record.toolUseResult);
-      if (result.agentId) context.parents.set(agentId('claude', context.sourceSessionId, result.agentId), context.agentId);
+      if (result.agentId) context.parents.set(agentId(source, context.sourceSessionId, result.agentId), context.agentId);
       const known = outcome(result);
       const status = block.is_error === true || known.status === 'failed' ? 'failed'
         : known.status === 'waiting' ? 'waiting'
@@ -214,7 +214,7 @@ export function normalizeClaude(record, context = {}) {
 
 export function normalizeOpenCode(part, context = {}) {
   if (part?.type !== 'tool') return [];
-  setup(context, 'opencode');
+  setup(context, context.source ?? 'opencode');
   const state = object(part.state);
   const times = object(part.time ?? state.time);
   const start = times.created ?? times.start;
@@ -228,5 +228,111 @@ export function normalizeOpenCode(part, context = {}) {
         : state.status === 'running' ? 'started' : 'unknown';
   const events = state.status !== 'pending' && Number.isFinite(start) ? transition(context, key, 'started', start, tool, args) : [];
   events.push(...transition(context, key, status, end ?? start ?? context.timestamp, tool, args));
+  return events;
+}
+
+// Workspace contents and tool output never enter an event. Pair only by the
+// provider's call ID; several calls with the same tool name can run in parallel.
+export function normalizeRecord(source, record, context) {
+  if (!record || typeof record !== 'object') return [];
+  if (source === 'codex') return normalizeCodex(record, context);
+  if (['claude', 'cherry', 'droid'].includes(source) || (source === 'proma' && record.type !== 'message' && record.type !== 'session')) {
+    if (source === 'droid' && record.type === 'session_start') setup(context, source, record.id);
+    return normalizeClaude(record, context, source);
+  }
+  const msg = record.message ?? {};
+  const data = record.data ?? {};
+  const records = value => Array.isArray(value) ? value : [];
+  const flag = error => error === true ? 'failed' : error === false ? 'completed' : 'unknown';
+  const events = [];
+  let time = record.timestamp ?? record.time ?? msg.timestamp;
+  let session = record.sessionId;
+  if (record.type === 'session') session = record.id;
+  if (source === 'copilot' && record.type === 'session.start') session = data.sessionId;
+  setup(context, source, session);
+  function emit(id, status, tool, args, at = time) {
+    if (typeof id === 'string' && id) events.push(...transition(context, id, status, at, tool, args));
+  }
+
+  switch (source) {
+    case 'pi': case 'omp': case 'senpi': case 'openclaw': case 'proma':
+      if (record.type !== 'message') break;
+      if (msg.role === 'assistant') for (const block of records(msg.content)) {
+        if (block?.type === 'toolCall') emit(block.id, 'started', block.name, block.arguments);
+      }
+      if (msg.role === 'toolResult') emit(msg.toolCallId, flag(msg.isError), msg.toolName);
+      break;
+    case 'codebuddy': case 'workbuddy':
+      if (record.type === 'function_call') emit(record.callId ?? record.id, 'started', record.name, record.arguments);
+      if (record.type === 'function_call_result') {
+        const status = record.status === 'failed' || outcome(record.output).status === 'failed' ? 'failed'
+          : record.status === 'completed' ? 'completed' : 'unknown';
+        emit(record.callId, status, record.name);
+      }
+      break;
+    case 'copilot':
+      if (record.type === 'tool.execution_start') emit(data.toolCallId, 'started', data.toolName, data.arguments);
+      if (record.type === 'tool.execution_complete') emit(data.toolCallId, data.error ? 'failed' : flag(typeof data.success === 'boolean' ? !data.success : undefined));
+      break;
+    case 'kimi': {
+      const payload = msg.payload ?? {};
+      if (typeof time === 'number') time *= 1000; // wire timestamps use Unix seconds
+      if (msg.type === 'ToolCall') emit(payload.id, 'started', payload.function?.name, payload.function?.arguments);
+      if (msg.type === 'ToolResult') emit(payload.tool_call_id, flag(payload.return_value?.is_error));
+      break;
+    }
+    case 'dsh':
+      if (record.type === 'tool/call') emit(data.callId, 'started', data.name, data.arguments);
+      if (record.type === 'tool/result') for (const block of records(data.message?.content)) {
+        if (block?.type === 'tool-result') emit(block.toolCallId, flag(block.isError));
+      }
+      break;
+    case 'qwen': {
+      const resultMeta = record.toolCallResult;
+      const resultStatus = resultMeta?.status;
+      for (const part of records(msg.parts)) {
+        const call = part?.functionCall, result = part?.functionResponse;
+        if (record.type === 'assistant' && call) emit(call.id, 'started', call.name, call.args);
+        if (record.type === 'tool_result' && result) {
+          const failed = outcome(result.response).status === 'failed' || resultStatus === 'error' || resultStatus === 'cancelled';
+          emit(result.id ?? resultMeta?.callId, failed ? 'failed' : resultStatus === 'success' ? 'completed' : outcome(result.response).status, result.name);
+        }
+      }
+      break;
+    }
+    case 'gemini': {
+      const statuses = { success: 'completed', error: 'failed', cancelled: 'failed', executing: 'started', awaiting_approval: 'waiting', scheduled: 'waiting', validating: 'waiting' };
+      for (const message of record.type === 'gemini' ? [record] : records(record.messages ?? record.$set?.messages)) {
+        if (message?.type !== 'gemini') continue;
+        for (const call of records(message.toolCalls)) {
+          if (call?.name) emit(call.id, Object.hasOwn(statuses, call.status) ? statuses[call.status] : 'unknown', call.name, call.args, call.timestamp ?? message.timestamp);
+        }
+      }
+      break;
+    }
+    case 'reasonix': {
+      const kind = record.type ?? record.kind ?? record.event_type;
+      const version = record.schema_version ?? record.schemaVersion;
+      const messages = version === 1 && ['replace', 'append'].includes(kind) ? records(record.messages) : [record];
+      for (const message of messages) {
+        time = message?.timestamp ?? message?.ts ?? record.ts ?? record.timestamp ?? context.fileTime;
+        if (message?.role === 'assistant') for (const call of records(message.tool_calls)) {
+          if (call?.id) emit(call.id, 'started', call.function?.name ?? call.name, call.function?.arguments ?? call.arguments);
+        }
+        if (message?.role === 'tool') emit(message.tool_call_id, flag(message.is_error), message.name);
+      }
+      break;
+    }
+    case 'cline': case 'kilo':
+      for (const message of records(record.messages ?? record)) {
+        // Some extension versions only timestamp the snapshot, not each block.
+        time = message?.ts ?? message?.timestamp ?? record.updated_at ?? context.fileTime;
+        for (const block of records(message?.content)) {
+          if (message.role === 'assistant' && block?.type === 'tool_use') emit(block.id, 'started', block.name, block.input);
+          if (message.role === 'user' && block?.type === 'tool_result') emit(block.tool_use_id, flag(block.is_error));
+        }
+      }
+      break;
+  }
   return events;
 }
