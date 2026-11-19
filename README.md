@@ -43,17 +43,33 @@ npm start
 | Roulette | 小球入轨，转轮减速落槽并显示工具反馈。 |
 | DataFlow | 核心与工具节点之间传送脉冲，等待在节点停留，失败以红色返回。实际父子关系驱动分支。 |
 
-## 数据与验证
+## 支持的 Agent 与默认会话位置
 
-运行所需的界面、字体和图形都在本地。桌面端通过 IPC 收取数据，浏览器版只监听 `127.0.0.1`。适配器只读会话文件或数据库，传给画面的是经过筛选的元数据。文件名、域名、工具名和会话标识仍可能涉及项目隐私。[数据来源和读取边界](docs/SOURCES.md)
+表中 `~` 表示用户主目录（Windows 为 `%USERPROFILE%`）。`<应用数据>` 在 macOS 为 `~/Library/Application Support`，在 Windows 为 `%APPDATA%`。设置 `XDG_DATA_HOME` 后，表中的 `~/.local/share` 使用该路径。
 
-| 来源 | 当前验证范围 |
+| Agent | 默认会话目录或数据库 |
 | --- | --- |
-| Codex | 已在开发机上观察到新增真实工具事件与并发子代理。 |
-| Claude Code | 已解析本机真实历史，新增调用、配对和恢复由脱敏样例验证。 |
-| OpenCode | 已只读解析本机真实 SQLite 历史，增量状态变化由数据库样例验证。 |
-
-最近一次三场景修订通过 59 项 Node 测试、28 项浏览器检查和 9 项 macOS 源码窗口检查。源码独立重建了 CrommaCode Game View 的机械场景，箱体材质、部分织纹和运动时序仍有差异。当前保留源码运行方式。[三场景验证记录](docs/SCENE-REVIEW-2026-11-18.md) · [视觉验收记录](design-qa.md)
+| Cherry Studio Agents | `<应用数据>/CherryStudio/Data/Agents/.claude/projects`<br>`<应用数据>/CherryStudio/.claude/projects` |
+| Claude Code | `~/.claude/projects` |
+| Cline | `<应用数据>/Code/User/globalStorage/saoudrizwan.claude-dev/tasks`<br>`~/.cline/data/sessions`<br>`~/.cline/data/tasks` |
+| CodeBuddy Code | `~/.codebuddy/projects` |
+| Codex | `~/.codex/sessions` |
+| DeepSeek Harness | `~/.dsh/sessions` |
+| Factory Droid | `~/.factory/sessions` |
+| Gemini CLI | `~/.gemini/tmp` |
+| GitHub Copilot CLI | `~/.copilot/session-state` |
+| Kilo Code | `~/.local/share/kilo/kilo.db`<br>`<应用数据>/Code/User/globalStorage/kilocode.kilo-code/tasks` |
+| Kimi CLI / Code | `~/.kimi/sessions`<br>`~/.kimi-code/sessions`<br>`<应用数据>/kimi-desktop/daimon-share/daimon/runtime/kimi-code/home/sessions` |
+| MiMo Code / Desktop | `~/.local/share/mimocode/mimocode.db`<br>macOS `<应用数据>/orca/mimocode-hooks/shared/data/mimocode.db` |
+| Oh My Pi | `~/.omp/agent/sessions` |
+| OmO Native / SenPi | `~/.senpi/agent/sessions`<br>`~/.omo/agent/sessions`<br>`~/.omo/senpi-task/children` |
+| OpenClaw | `~/.openclaw/agents` |
+| OpenCode | `~/.local/share/opencode/opencode.db` |
+| Pi | `~/.pi/agent/sessions` |
+| Proma | `~/.proma/sdk-config/projects`<br>`~/.proma/sdk-config/sessions`<br>`~/.proma-dev/sdk-config/projects`<br>`~/.proma-dev/sdk-config/sessions` |
+| Qwen Code | `~/.qwen/projects` |
+| Reasonix | macOS `~/.reasonix/sessions`<br>macOS `~/.reasonix/projects/*/sessions`<br>Windows `<应用数据>/reasonix/sessions`<br>Windows `<应用数据>/reasonix/projects/*/sessions` |
+| WorkBuddy | `~/.workbuddy/projects`<br>`~/.workbuddy-ai/projects` |
 
 ## 项目文档
 
