@@ -4,7 +4,7 @@
 
 Relay Atelier 是在本机观察 Coding Agent 工具调用的桌面程序。继续在原来的终端或客户端使用 Agent，观察器会把会话里的开始、等待、完成和失败转成机械动作。没有会话时，可以直接切到 Demo。
 
-**桌面版下载**提供 macOS 和 Windows 的 ARM64、x64 压缩包。当前公开版本 **v1.1.0** 对应应用构建 **1.2.0**。完整解压到可写目录后打开应用。[GitHub Releases](https://github.com/NoctisWang528/RelayAtelier/releases/latest) · [版本编号与构建对应表](docs/VERSIONING.md)
+**桌面版下载**提供 macOS 和 Windows 的 ARM64、x64 压缩包。当前公开版本 **v1.2.0** 对应应用构建 **1.3.0**。完整解压到可写目录后打开应用。[GitHub Releases](https://github.com/NoctisWang528/RelayAtelier/releases/latest) · [版本编号与构建对应表](docs/VERSIONING.md)
 
 [![同一份样例依次驱动 Factory 的货箱、Loom 的织物和 DataFlow 的节点](examples/replay-preview.jpg)](examples/three-scenes.mp4)
 
@@ -26,7 +26,7 @@ npm start
 
 首次使用可以选 **Demo → Factory** 看取料、放料和出带，再切到 **Loom** 看同一批调用怎样织入布面。要观察自己的 Agent，切到 **Live**，在右下角“本地来源”查看连接详情和最近真实事件。历史排演用 **Replay**。[使用手册与故障排查](docs/USAGE.md)
 
-当前源码支持 **21 个 Agent 来源**。在 **本地来源 → Agent 监听设置** 中选择 Agent，可启停监听，并在默认位置之外添加多个会话目录。桌面版会自动检查 GitHub 正式发行版，发现新版后可打开下载页。[支持清单、默认路径与文件格式](docs/SOURCES.md#agent-session-locations)
+当前源码支持 **21 个 Agent 来源**。点击底部工具栏右侧的 **设置**，即可逐项勾选要采集的 Agent、添加自定义会话目录、选择自动／浅色／深色外观，以及调整帧率上限。桌面版会自动检查 GitHub 正式发行版，发现新版后可打开下载页。[支持清单、默认路径与文件格式](docs/SOURCES.md#agent-session-locations)
 
 需要更快看到工具活动时，在桌面窗口打开 **本地来源 → Agent Hooks**，选择对应 Agent 安装。回调唤醒本机会话读取，事件配对、失败判定和最近事件时间仍取自会话记录。面板也提供移除入口。[Hook 安装、恢复与扩展](docs/HOOKS.md)
 

@@ -24,6 +24,7 @@ Relay Atelier 保留两套编号。下载和升级时看 GitHub Release 的版�
 
 | 公开版本 | 本地构建 | 源码提交 | 发布说明 |
 | --- | --- | --- | --- |
+| [v1.2.0](https://github.com/NoctisWang528/RelayAtelier/releases/tag/v1.2.0) | 1.3.0 | [v1.2.0 标签](https://github.com/NoctisWang528/RelayAtelier/tree/v1.2.0) | [中文 / English](releases/v1.2.0.md) |
 | [v1.1.0](https://github.com/NoctisWang528/RelayAtelier/releases/tag/v1.1.0) | 1.2.0 | [815b35c](https://github.com/NoctisWang528/RelayAtelier/commit/815b35c130a7d622de242a5f44b6cf4040470351) | [中文 / English](releases/v1.1.0.md) |
 | [v1.0.1](https://github.com/NoctisWang528/RelayAtelier/releases/tag/v1.0.1) | 1.1.2 | [da8807c](https://github.com/NoctisWang528/RelayAtelier/commit/da8807c126d1c95ed03db8c16a526465dfa7ae8e) | [中文 / English](releases/v1.0.1.md) |
 | [v1.0.0](https://github.com/NoctisWang528/RelayAtelier/releases/tag/v1.0.0) | 1.1.1 | [58cdcbf](https://github.com/NoctisWang528/RelayAtelier/commit/58cdcbf15eda16cdd224a28e6947b855f0533fcb) | [中文 / English](releases/v1.0.0.md) |

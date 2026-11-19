@@ -3,6 +3,8 @@ import { dirname, isAbsolute, normalize } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { sources } from './source-catalog.mjs';
 
+const defaults = { enabled: true, directories: [] };
+
 function validate(id, value) {
   if (!Object.hasOwn(sources, id) || typeof value?.enabled !== 'boolean' ||
       !Array.isArray(value.directories) || value.directories.length > 64) throw new Error('来源设置无效。');
@@ -28,12 +30,19 @@ export async function openSourceSettings(file, hub) {
   let pending = Promise.resolve();
   const list = () => Object.entries(sources).map(([id, label]) => ({
     id, label, defaults: [].concat(hub.roots[id] ?? []),
-    ...(saved[id] ?? { enabled: true, directories: [] }),
+    ...(saved[id] ?? defaults),
   }));
   function save(id, value) {
-    const update = validate(id, value);
+    // Merge only the fields the control changed, including writes from other windows.
+    if (!value || (!Object.hasOwn(value, 'enabled') && !Object.hasOwn(value, 'directories'))) {
+      throw new Error('来源设置无效。');
+    }
+    const validated = validate(id, { ...defaults, ...value });
+    const update = {};
+    if (Object.hasOwn(value, 'enabled')) update.enabled = validated.enabled;
+    if (Object.hasOwn(value, 'directories')) update.directories = validated.directories;
     const task = pending.then(async () => {
-      const next = { ...saved, [id]: update };
+      const next = { ...saved, [id]: { ...(saved[id] ?? defaults), ...update } };
       const temp = file + '.' + randomUUID();
       await mkdir(dirname(file), { recursive: true });
       try {

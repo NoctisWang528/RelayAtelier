@@ -30,8 +30,8 @@ export async function startServer({port=4317,hub,settingsFile}={}){
    try{
     const chunks=[];let size=0;
     for await(const chunk of req){size+=chunk.length;if(size>1024*1024){res.writeHead(413).end();return;}chunks.push(chunk);}
-    const {id,enabled,directories}=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    res.end(JSON.stringify(await settings.save(id,{enabled,directories})));
+    const {id,...changes}=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    res.end(JSON.stringify(await settings.save(id,changes)));
    }catch(error){res.writeHead(400).end(JSON.stringify({error:error.code?'无法保存来源设置。':error.message}));}
    return;
   }

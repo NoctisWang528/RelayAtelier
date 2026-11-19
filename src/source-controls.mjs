@@ -12,20 +12,44 @@ const webApi = {
     body: JSON.stringify({ id, ...value }) }),
 };
 
-export function createSourceControls(form, api = webApi) {
-  const { agent, enabled, directories } = form.elements;
+export function createSourceControls(section, api = webApi) {
+  const form = section.querySelector('form');
+  const { agent, directories } = form.elements;
   const fieldset = form.querySelector('fieldset');
   const defaults = form.querySelector('code');
   const status = form.querySelector('[role="status"]');
   const pick = form.querySelector('[data-pick]');
-  let rows = [], loading = false;
+  const checks = section.querySelector('#agent-checks');
+  const collectionStatus = section.querySelector('[data-collection-status]');
+  let rows = [], loading = false, pending = 0;
   const paths = () => directories.value.split('\n').map(path => path.trim()).filter(Boolean);
   function select() {
     const row = rows.find(row => row.id === agent.value);
-    enabled.checked = row.enabled;
     directories.value = row.directories.join('\n');
     defaults.textContent = row.defaults.join('\n') || '未配置默认目录';
     status.textContent = '';
+  }
+  function checkbox(row) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = row.enabled;
+    input.addEventListener('change', async () => {
+      pending++;
+      input.disabled = true;
+      try {
+        await api.save(row.id, { enabled: input.checked });
+        collectionStatus.textContent = `${row.label} 已${input.checked ? '开启' : '关闭'}采集。`;
+      } catch (error) {
+        input.checked = !input.checked;
+        collectionStatus.textContent = row.label + '：' + error.message;
+      } finally {
+        input.disabled = false;
+        pending--;
+      }
+    });
+    label.append(input, row.label);
+    return label;
   }
   agent.addEventListener('change', select);
   pick.hidden = !api.pick;
@@ -39,25 +63,32 @@ export function createSourceControls(form, api = webApi) {
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (fieldset.disabled) return;
-    const value = { enabled: enabled.checked, directories: paths() };
+    pending++;
     fieldset.disabled = true;
     try {
-      rows = await api.save(agent.value, value);
+      const saved = await api.save(agent.value, { directories: paths() });
+      const row = rows.find(row => row.id === agent.value);
+      row.directories = saved.find(item => item.id === row.id).directories;
       select();
-      status.textContent = '已保存，监听设置已生效。';
+      status.textContent = '目录已保存。';
     } catch (error) { status.textContent = error.message; }
-    finally { fieldset.disabled = false; }
+    finally { fieldset.disabled = false; pending--; }
   });
   return async () => {
-    if (loading || (rows.length && fieldset.disabled)) return;
+    if (loading || pending) return;
     loading = fieldset.disabled = true;
+    checks.replaceChildren();
+    collectionStatus.textContent = '正在读取采集设置…';
     try {
       rows = await api.list();
       const previous = agent.value;
       agent.replaceChildren(...rows.map(row => new Option(row.label, row.id)));
       if (rows.some(row => row.id === previous)) agent.value = previous;
+      checks.replaceChildren(...rows.map(checkbox));
       select();
-    } catch (error) { status.textContent = error.message; }
-    finally { loading = false; fieldset.disabled = !rows.length; }
+      collectionStatus.textContent = '';
+      fieldset.disabled = false;
+    } catch (error) { collectionStatus.textContent = error.message; }
+    finally { loading = false; }
   };
 }

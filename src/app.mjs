@@ -11,7 +11,7 @@ import {EventStore,AnimationQueue,COLORS,TYPES} from './state.mjs';
 import {DemoPlayer} from './demo.mjs';
 import {createSourceControls} from './source-controls.mjs';
 import {createHookControls} from './hook-controls.mjs';
-const icons={dial:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3m9 6h-3M12 21v-3M3 12h3m6 0 5-5"/>',factory:'<path d="M3 16h18v5H3zM6 16V9l6-5 5 4-4 4m-1-8V2m1 10 4 4m-3-3 3-3"/><path d="M6 18.5h.01m6 0h.01m6 0h.01"/>',chips:'<rect x="8" y="3" width="12" height="18" rx="2"/><path d="m5 5-3 1 2 15 3-.5M14 8l3 4-3 4-3-4z"/>',rhythm:'<path d="M8 3 2 21m9-18-2 18m4-18 2 18m1-18 6 18M4 17h16M8 8h8"/><rect x="10" y="12" width="4" height="2"/>',loom:'<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 3v18m5-18v18m5-18v18M3 8h18M3 16h18m-12-4h9"/>',dataflow:'<path d="m12 10-7-5m9 5 5-5M12 14l-7 5m9-5 5 5"/><circle cx="12" cy="12" r="3"/><circle cx="4" cy="4" r="2"/><circle cx="20" cy="4" r="2"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="20" r="2"/>',pin:'<path d="m9 3 6 0-1 7 4 4H6l4-4-1-7m3 11v7"/>',pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 5 11 7-11 7z"/>',focus:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',mark:'<path d="M4 5h16M4 19h16M7 3v18m5-18v18m5-18v18M3 11h18m-18 3h18"/>'};
+const icons={settings:'<path d="M4 6h6m4 0h6M4 12h10m4 0h2M4 18h2m4 0h10"/><circle cx="12" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>',dial:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3m9 6h-3M12 21v-3M3 12h3m6 0 5-5"/>',factory:'<path d="M3 16h18v5H3zM6 16V9l6-5 5 4-4 4m-1-8V2m1 10 4 4m-3-3 3-3"/><path d="M6 18.5h.01m6 0h.01m6 0h.01"/>',chips:'<rect x="8" y="3" width="12" height="18" rx="2"/><path d="m5 5-3 1 2 15 3-.5M14 8l3 4-3 4-3-4z"/>',rhythm:'<path d="M8 3 2 21m9-18-2 18m4-18 2 18m1-18 6 18M4 17h16M8 8h8"/><rect x="10" y="12" width="4" height="2"/>',loom:'<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 3v18m5-18v18m5-18v18M3 8h18M3 16h18m-12-4h9"/>',dataflow:'<path d="m12 10-7-5m9 5 5-5M12 14l-7 5m9-5 5 5"/><circle cx="12" cy="12" r="3"/><circle cx="4" cy="4" r="2"/><circle cx="20" cy="4" r="2"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="20" r="2"/>',pin:'<path d="m9 3 6 0-1 7 4 4H6l4-4-1-7m3 11v7"/>',pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 5 11 7-11 7z"/>',focus:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',mark:'<path d="M4 5h16M4 19h16M7 3v18m5-18v18m5-18v18M3 11h18m-18 3h18"/>'};
 const svg=name=>`<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
 const defs=[['dial','Westworld','PRECISION ENGINE','',Dial],['loom','Loom','EVENT TEXTILE','',Loom],['factory','Factory','ASSEMBLY LINE','',Factory],['chips','Chips','TOOL HANDS','',Chips],['rhythm','Rhythm','SIGNAL SEQUENCER','',Rhythm],['slots','Slots','TOOL REELS','',Slots],['roulette','Roulette','CALL ORBIT','',Roulette],['dataflow','DataFlow','TOOL CONNECTIONS','',DataFlow]];
 const statusNames={started:'进行中',completed:'已完成',failed:'失败',unknown:'未知',waiting:'等待'};
@@ -28,17 +28,32 @@ document.querySelector('#app').innerHTML=`<div class="app-shell">
 <div class="tray-card status-card"><div class="tray-heading"><span>会话状态</span></div><div class="health-line"><span>调用 / 完成</span><strong id="call-count">0 / 0</strong></div><div class="health-line"><span>进行中 / 未知</span><strong id="active-count">0 / 0</strong></div><div class="health-line"><span>失败 / Agents</span><strong id="failed-count">0 / 0</strong></div><div class="health-line"><span>队列 / 已折叠</span><strong id="queue-count">0 / 0</strong></div></div>
 <div class="tray-card source-card-main"><div class="tray-heading"><span>本地来源</span><button id="info" class="tiny-icon" aria-label="数据源与使用说明">${svg('info')}</button></div><label class="session-label" for="session">观察会话</label><select id="session" class="session-select"><option value="all">全部会话</option></select><button id="connection" class="connection-button"><span id="connection-dot" class="dot warn"></span> <span id="connection-text">正在连接</span></button><span id="last-event" class="tray-small">尚无事件</span></div>
 </section>
-<header class="topbar"><span class="brand-name">Relay Atelier</span><div class="source-switch" role="group" aria-label="事件来源"><button data-mode="live" aria-pressed="true">Live</button><button data-mode="replay" aria-pressed="false">Replay</button><button data-mode="demo" aria-pressed="false">Demo</button></div><span class="signal-tag"><span id="stage-dot" class="dot"></span><span id="stage-mode">LIVE / READ ONLY</span></span><div id="replay-controls" class="replay-controls" hidden><button id="replay-restart">重新播放</button><label for="replay-speed">速度</label><select id="replay-speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select><span id="replay-progress"></span></div><div class="toolbar-right"><button id="pause" aria-label="暂停动画" aria-pressed="false" title="暂停 · Space">${svg('pause')}</button><button id="focus" aria-label="专注视图" aria-pressed="false" title="专注视图 · F">${svg('focus')}</button><button id="theme" aria-label="切换明暗外观" title="外观">${svg('sun')}</button><button id="pin" class="pin" aria-label="窗口置顶" aria-pressed="false" title="窗口置顶">${svg('pin')}</button></div></header>
+<header class="topbar"><span class="brand-name">Relay Atelier</span><div class="source-switch" role="group" aria-label="事件来源"><button data-mode="live" aria-pressed="true">Live</button><button data-mode="replay" aria-pressed="false">Replay</button><button data-mode="demo" aria-pressed="false">Demo</button></div><span class="signal-tag"><span id="stage-dot" class="dot"></span><span id="stage-mode">LIVE / READ ONLY</span></span><div id="replay-controls" class="replay-controls" hidden><button id="replay-restart">重新播放</button><label for="replay-speed">速度</label><select id="replay-speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select><span id="replay-progress"></span></div><div class="toolbar-right"><button id="pause" aria-label="暂停动画" aria-pressed="false" title="暂停 · Space">${svg('pause')}</button><button id="focus" aria-label="专注视图" aria-pressed="false" title="专注视图 · F">${svg('focus')}</button><button id="theme" aria-label="切换明暗外观" title="外观">${svg('sun')}</button><button id="pin" class="pin" aria-label="窗口置顶" aria-pressed="false" title="窗口置顶">${svg('pin')}</button><button id="open-settings" aria-haspopup="dialog" aria-controls="settings-dialog">${svg('settings')} 设置</button></div></header>
 <span id="eyebrow" hidden></span><span id="scene-subtitle" hidden></span><span id="legend" hidden></span></div>
-<dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-top"><h2 id="source-title">本地事件观察器</h2><button id="close-dialog" aria-label="关闭说明">${svg('close')}</button></div><p>继续在原来的终端或客户端使用 Agent。Relay 只在本机读取会话事件，不启动模型，也不上传会话。</p><form id="source-settings" aria-labelledby="source-settings-title"><fieldset disabled>
-<legend id="source-settings-title">Agent 监听设置</legend>
+<dialog id="settings-dialog" aria-labelledby="settings-title">
+<header class="settings-header"><h2 id="settings-title">设置</h2><form method="dialog"><button aria-label="关闭设置" autofocus>${svg('close')}</button></form></header>
+<div class="settings-body">
+<section aria-labelledby="display-title"><h3 id="display-title">显示</h3>
+<div class="display-options">
+<fieldset class="theme-options"><legend>外观模式</legend>
+<label><input type="radio" name="theme" value="auto">自动（跟随系统）</label>
+<label><input type="radio" name="theme" value="light">浅色</label>
+<label><input type="radio" name="theme" value="dark">深色</label></fieldset>
+<div class="frame-option"><label for="frame-cap">帧率上限</label><div><input type="number" id="frame-cap" min="1" max="240" step="1" required aria-describedby="frame-range"> FPS</div><small id="frame-range">1–240 FPS</small></div>
+</div></section>
+<section id="source-settings" aria-labelledby="collection-title"><h3 id="collection-title">Agent 采集</h3>
+<p>勾选要采集的 Agent。更改后立即生效。</p>
+<div id="agent-checks" role="group" aria-labelledby="collection-title"></div><p role="status" data-collection-status></p>
+<details class="directory-settings"><summary>自定义会话目录</summary>
+<form><fieldset disabled><legend>目录设置</legend>
 <label for="agent-choice">Agent</label><select id="agent-choice" name="agent"></select>
-<label class="enable-agent"><input type="checkbox" name="enabled" role="switch"> 启用此 Agent</label>
 <span>默认位置</span><code></code>
-<label for="additional-roots">自定义会话目录（每行一个完整路径）</label>
-<textarea name="directories" id="additional-roots" rows="2" spellcheck="false" autocapitalize="off"></textarea>
-<button type="button" data-pick hidden>选择目录…</button><button type="submit">保存设置</button>
-</fieldset><p role="status"></p></form>
+<label for="additional-roots">附加目录（每行一个完整路径）</label>
+<textarea name="directories" id="additional-roots" rows="3" spellcheck="false" autocapitalize="off"></textarea>
+<button type="button" data-pick hidden>选择目录…</button><button type="submit">保存目录</button>
+</fieldset><p role="status"></p></form></details>
+</section></div></dialog>
+<dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-top"><h2 id="source-title">本地事件观察器</h2><button id="close-dialog" aria-label="关闭说明">${svg('close')}</button></div><p>继续在原来的终端或客户端使用 Agent。Relay 只在本机读取会话事件，不启动模型，也不上传会话。</p>
 <details id="source-health"><summary>各来源连接详情</summary><div id="source-details"></div></details>
 <button id="check-update" type="button" hidden>检查应用更新…</button>
 <section id="agent-hooks" aria-labelledby="hooks-title">
@@ -117,11 +132,42 @@ function setMode(next){
 }
 function setPause(value){paused=value;$('#pause').setAttribute('aria-pressed',String(paused));$('#pause').setAttribute('aria-label',paused?'继续动画':'暂停动画');$('#pause').innerHTML=`${svg(paused?'play':'pause')} <span>${paused?'继续':'暂停'}</span>`;}
 function toggleFocus(){focus=!focus;document.body.classList.toggle('focus-mode',focus);$('#focus').setAttribute('aria-pressed',String(focus));}
-function setTheme(porcelain){document.body.classList.toggle('porcelain',porcelain);document.body.classList.toggle('night-mode',!porcelain);localStorage.setItem('relay-theme',porcelain?'porcelain':'graphite');$('#theme').setAttribute('aria-label',porcelain?'切换到石墨外观':'切换到瓷白外观');}
-setTheme(localStorage.getItem('relay-theme')!=='graphite');selectScene(sceneId);
+const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+const themeOptions = $('.theme-options');
+const savedTheme = localStorage.getItem('relay-theme');
+function applyTheme(value) {
+ const dark = value === 'dark' || (value === 'auto' && systemTheme.matches);
+ document.body.classList.toggle('night-mode', dark);
+ document.body.classList.toggle('porcelain', !dark);
+ document.documentElement.dataset.appearance = dark ? 'dark' : 'light';
+ themeOptions.querySelector(`input[value="${value}"]`).checked = true;
+ $('#theme').setAttribute('aria-label', dark ? '切换到浅色外观' : '切换到深色外观');
+}
+function selectTheme(value) {
+ if (value === 'auto') localStorage.removeItem('relay-theme');
+ else localStorage.setItem('relay-theme', value);
+ applyTheme(value);
+}
+if (savedTheme === 'graphite' || savedTheme === 'porcelain') selectTheme(savedTheme === 'graphite' ? 'dark' : 'light');
+else applyTheme(['light', 'dark'].includes(savedTheme) ? savedTheme : 'auto');
+systemTheme.addEventListener('change', () => {
+ if (themeOptions.querySelector(':checked').value === 'auto') applyTheme('auto');
+});
+themeOptions.addEventListener('change', event => selectTheme(event.target.value));
+
+const capInput = $('#frame-cap');
+capInput.value = localStorage.getItem('relay-frame-cap') ?? '60';
+let frameCap = capInput.validity.valid ? capInput.valueAsNumber : 60;
+capInput.value = frameCap;
+capInput.addEventListener('change', () => {
+ if (!capInput.reportValidity()) return;
+ frameCap = capInput.valueAsNumber;
+ localStorage.setItem('relay-frame-cap', String(frameCap));
+});
+selectScene(sceneId);
 document.querySelectorAll('[data-scene]').forEach(b=>b.addEventListener('click',()=>selectScene(b.dataset.scene)));
 document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
-$('#pause').addEventListener('click',()=>setPause(!paused));$('#focus').addEventListener('click',toggleFocus);$('#theme').addEventListener('click',()=>setTheme(!document.body.classList.contains('porcelain')));
+$('#pause').addEventListener('click',()=>setPause(!paused));$('#focus').addEventListener('click',toggleFocus);$('#theme').addEventListener('click',()=>selectTheme(document.body.classList.contains('porcelain')?'dark':'light'));
 $('#pin').addEventListener('click',async()=>{if(!window.relay){showToast('置顶功能可在独立桌面窗口中使用。');return;}const v=await window.relay.pin($('#pin').getAttribute('aria-pressed')!=='true');$('#pin').setAttribute('aria-pressed',String(v));});
 const refreshHooks=createHookControls($('#agent-hooks'),window.relay?.hooks);
 const refreshSourceSettings=createSourceControls($('#source-settings'),window.relay?.sources);
@@ -129,10 +175,15 @@ if(window.relay?.checkUpdate){
  const button=$('#check-update');button.hidden=false;
  button.onclick=async()=>{button.disabled=true;try{await window.relay.checkUpdate();}catch{showToast('暂时无法检查更新');}finally{button.disabled=false;}};
 }
-const openInfo=()=>{updateSources();$('#source-dialog').showModal();refreshHooks();refreshSourceSettings();};$('#info').addEventListener('click',openInfo);$('#connection').addEventListener('click',openInfo);$('#close-dialog').addEventListener('click',()=>$('#source-dialog').close());
+$('#open-settings').addEventListener('click', () => {
+ capInput.value = frameCap;
+ $('#settings-dialog').showModal();
+ refreshSourceSettings();
+});
+const openInfo=()=>{updateSources();$('#source-dialog').showModal();refreshHooks();};$('#info').addEventListener('click',openInfo);$('#connection').addEventListener('click',openInfo);$('#close-dialog').addEventListener('click',()=>$('#source-dialog').close());
 $('#session').addEventListener('change',()=>{sessionId=$('#session').value;resetScenes();lastRevision=-1;if(mode==='replay')makeReplay();else seedLiveSpools();});
 $('#replay-restart').addEventListener('click',makeReplay);$('#replay-speed').addEventListener('change',()=>replaySpeed=Number($('#replay-speed').value));
-window.addEventListener('keydown',e=>{if(e.target.matches('input,select,textarea')||$('#source-dialog').open)return;if(e.key>='1'&&e.key<='8')selectScene(defs[Number(e.key)-1][0]);else if(e.code==='Space'){e.preventDefault();setPause(!paused);}else if(e.key.toLowerCase()==='f')toggleFocus();});
+window.addEventListener('keydown',e=>{if(e.target.matches('input,select,textarea')||$('dialog[open]')||(e.code==='Space' && e.target.closest('#open-settings')))return;if(e.key>='1'&&e.key<='8')selectScene(defs[Number(e.key)-1][0]);else if(e.code==='Space'){e.preventDefault();setPause(!paused);}else if(e.key.toLowerCase()==='f')toggleFocus();});
 function timeLabel(ts){if(!ts)return '尚无事件';const d=new Date(ts);return Number.isFinite(d.getTime())?d.toLocaleTimeString('zh-CN',{hour12:false}):'时间未知';}
 function updateUi(view){
  $('#agent-tally').textContent=view.agents.length;$('#tool-tally').textContent=new Set(view.calls.map(e=>e.tool)).size;$('#total-tally').textContent=view.counts.total;$('#file-tally').textContent=new Set(view.calls.filter(e=>e.toolType==='files').map(e=>e.target).filter(Boolean)).size;$('#error-tally').textContent=view.counts.failed;
@@ -184,6 +235,7 @@ function draw(t,dt,view){
  scenes.get(sceneId).render(ctx,t,dt,{...view,reducedMotion,viewport:{width:1200,height:worldH,navigation}});ctx.restore();rendered++;
  if(sceneId==='loom')updateLoomHover();
 }
+let nextDraw = 0, previousFPS = 0;
 function tick(now){
  const elapsed=Math.min((now-lastTime)/1000,.1);lastTime=now;
  if(!document.hidden&&windowVisible){
@@ -193,8 +245,25 @@ function tick(now){
    }
    queue.drain(simTime,(e,t)=>{for(const scene of scenes.values())scene.onEvent(e,t);lastActivity=t;});
   }
-  const targetFPS=paused?2:reducedMotion?10:simTime-lastActivity<6||queue.items.length?60:12;
-  if(now-lastDraw>=1000/targetFPS-1){const view=store.view(sessionId);draw(simTime,paused?0:(now-lastDraw)/1000,view);lastDraw=now;frames++;if(now-lastUi>350){updateUi(view);lastUi=now;}}
+  const active = simTime-lastActivity < 6 || queue.items.length > 0;
+  const targetFPS = Math.min(frameCap, paused ? 2 : reducedMotion ? 10 : active ? frameCap : 12);
+  const interval = 1000 / targetFPS;
+  if (targetFPS !== previousFPS) {
+   nextDraw = lastDraw + interval;
+   previousFPS = targetFPS;
+  }
+  const drawDue = now >= nextDraw;
+  const uiDue = now-lastUi > 350;
+  if (drawDue || uiDue) {
+   const view = store.view(sessionId);
+   if (drawDue) {
+    draw(simTime, paused ? 0 : (now-lastDraw)/1000, view);
+    lastDraw = now;
+    nextDraw += (Math.floor((now-nextDraw)/interval) + 1) * interval;
+    frames++;
+   }
+   if (uiDue) { updateUi(view); lastUi = now; }
+  }
   if(now-fpsAt>=1000){fps=Math.round(frames*1000/(now-fpsAt));frames=0;fpsAt=now;}
  }
  if(document.hidden||!windowVisible)setTimeout(()=>tick(performance.now()),1000);else requestAnimationFrame(tick);

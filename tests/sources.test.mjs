@@ -94,7 +94,7 @@ test('settings persist concurrent edits, keep default and custom folders, and st
   await Promise.all([settings.save('pi', { enabled: true, directories: [custom, custom, defaults] }),
     settings.save('omp', { enabled: false, directories: [] })]);
   assert.equal(hub.snapshot().events.length, 3);
-  await settings.save('pi', { enabled: false, directories: [custom] });
+  await Promise.all([settings.save('pi', { enabled: false }), settings.save('pi', { directories: [custom] })]);
   const when = new Date(Date.now() + 100).toISOString();
   const fresh = id => lines([{ ...pi[1], timestamp: when, message: msg('assistant', [{ type: 'toolCall', id, name: 'Read' }]) }]);
   await appendFile(log, fresh('disabled'));
@@ -102,7 +102,7 @@ test('settings persist concurrent edits, keep default and custom folders, and st
   assert.equal(hub.snapshot().events.length, 3);
   assert.equal(hub.snapshot().sources.find(s => s.source === 'pi').status, 'disabled');
   assert.deepEqual([...hub._tails.keys()], []);
-  await settings.save('pi', { enabled: true, directories: [custom] });
+  await settings.save('pi', { enabled: true });
   assert.equal(live.length, 0);
   await appendFile(log, fresh('enabled'));
   await hub._poll();
