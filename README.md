@@ -4,7 +4,7 @@
 
 Relay Atelier 是在本机观察 Coding Agent 工具调用的桌面程序。继续在原来的终端或客户端使用 Codex、Claude Code 或 OpenCode，观察器会把会话里的开始、等待、完成和失败转成机械动作。没有会话时，可以直接切到 Demo。
 
-**桌面版下载**支持 macOS arm64 和 Windows x64。首个公开版本为 **v1.0.0**，对应应用构建 **1.1.1**。完整解压到可写目录后打开应用。[GitHub Releases](https://github.com/NoctisWang528/RelayAtelier/releases/latest) · [版本编号与构建对应表](docs/VERSIONING.md)
+**桌面版下载**支持 macOS arm64 和 Windows x64。当前公开版本 **v1.0.1** 对应应用构建 **1.1.2**。完整解压到可写目录后打开应用。[GitHub Releases](https://github.com/NoctisWang528/RelayAtelier/releases/latest) · [版本编号与构建对应表](docs/VERSIONING.md)
 
 [![同一份样例依次驱动 Factory 的货箱、Loom 的织物和 DataFlow 的节点](examples/replay-preview.jpg)](examples/three-scenes.mp4)
 
