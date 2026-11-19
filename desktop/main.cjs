@@ -15,8 +15,8 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
    const fixtureHome=!app.isPackaged && process.env.RELAY_HOOK_TEST_HOME;
    const hooks=createHookManager(fixtureHome ? {home:fixtureHome,env:{}} : {});
    hub=fixtureHome ? new SourceHub({roots:defaultSourceRoots(fixtureHome,{}),pulseFile:getPulseFile(fixtureHome)}) : new SourceHub();
-   const icon=path.join(root,'assets','icon.png');
-   app.dock?.setIcon(icon);
+   const icon=path.join(root,'assets',process.platform==='darwin'?'Relay.iconset/icon_512x512@2x.png':'icon.png');
+   if(!app.isPackaged)app.dock?.setIcon(icon);
    Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Relay Atelier',submenu:[{role:'about'},{type:'separator'},{role:'quit'}]},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetzoom'},{role:'zoomin'},{role:'zoomout'}]}]));
    // All renderer resources are bundled. Deny remote requests and permissions.
    session.defaultSession.webRequest.onBeforeRequest((details,cb)=>cb({cancel:!details.url.startsWith('file:')&&!details.url.startsWith('devtools:')}));
@@ -27,8 +27,12 @@ if(!app.requestSingleInstanceLock()){app.quit();}else{
     win.webContents.on('will-navigate',e=>e.preventDefault());
     win.once('ready-to-show',()=>win.show());win.loadFile(path.join(root,'index.html'));
     win.on('closed',()=>{win=null;});
-    for(const event of ['minimize','hide'])win.on(event,()=>win?.webContents.send('relay:visibility',false));
-    for(const event of ['restore','show'])win.on(event,()=>win?.webContents.send('relay:visibility',true));
+    const window=win;
+    function syncVisibility(){
+     if(!window.isDestroyed())window.webContents.send('relay:visibility',window.isVisible()&&!window.isMinimized());
+    }
+    // AppKit can deliver a hide notification while the unfocused window is still visible.
+    for(const event of ['hide','show','minimize','restore','focus'])window.on(event,()=>setImmediate(syncVisibility));
    }
    ipcMain.handle('relay:snapshot',()=>hub.snapshot());
    ipcMain.handle('relay:pin',(_e,value)=>{if(win)win.setAlwaysOnTop(value===true);return win?.isAlwaysOnTop()||false;});

@@ -88,26 +88,28 @@ export default class Slots {
 
   drawDial(c, rotation, event) {
     const x = 1190, y = -57, r = 492;
+    const face = c.createLinearGradient(x - r * .7, y - r * .7, x + r * .7, y + r * .7);
+    face.addColorStop(0, '#faf8f3'); face.addColorStop(.5, '#eeece5'); face.addColorStop(1, '#ded9cf');
     c.save(); c.shadowColor = '#8b82742c'; c.shadowBlur = 23; c.shadowOffsetY = 12;
-    circle(c, x, y, r, '#eeece5', '#c8c2b7'); c.restore();
+    circle(c, x, y, r, face, '#c8c2b7'); c.restore();
     for (const [radius, width, color] of [[488, 3, '#fff'], [482, 1, '#c7c2b8'], [477, 6, '#fdfcfa'], [468, 1, '#bcb6aa'], [462, 8, '#e3dfd5'], [454, 2, '#fff'], [448, 1, '#aaa498'], [440, 13, '#faf9f6'], [427, 1, '#c2bbae'], [421, 4, '#fff'], [405, 1, '#d3ccc0'], [329, 2, '#d1cabe'], [321, 4, '#fff'], [315, 4, '#d8d2c8'], [309, 1, '#c1baad']]) circle(c, x, y, radius, null, color, width);
-    c.save(); c.translate(x, y); c.rotate(rotation);
+    c.save(); c.translate(x, y);
     for (let i = 0; i < 720; i++) {
-      const a = i * TAU / 720;
+      const a = rotation + i * TAU / 720;
       const major = i % 30 === 0, mid = i % 5 === 0;
       line(c, [[Math.cos(a) * 450, Math.sin(a) * 450], [Math.cos(a) * (major ? 426 : mid ? 438 : 444), Math.sin(a) * (major ? 426 : mid ? 438 : 444)]], major ? '#888277' : '#b6afa1', major ? .9 : .5);
-      if (i % 15 === 0) screw(c, Math.cos(a) * 477, Math.sin(a) * 477, 1.4);
+      if (i % 15 === 0) screw(c, Math.cos(a) * 477, Math.sin(a) * 477, 1.4, rotation);
       if (major) {
         c.save(); c.translate(Math.cos(a) * 413, Math.sin(a) * 413); c.rotate(a + Math.PI / 2);
         label(c, String(i / 2).padStart(3, '0'), 0, 0, 9, P.muted, 'center'); c.restore();
       }
     }
     for (let i = 0; i < 24; i++) {
-      const a = i * TAU / 24, b = a + TAU / 24;
+      const a = rotation + i * TAU / 24, b = a + TAU / 24;
       c.beginPath(); c.arc(0, 0, 325, a + .009, b - .009); c.strokeStyle = P[TYPES[i % 6]]; c.lineWidth = 5; c.stroke();
       line(c, [[Math.cos(a) * 331, Math.sin(a) * 331], [Math.cos(a) * 421, Math.sin(a) * 421]], '#c6c0b4', 4);
       line(c, [[Math.cos(a) * 331, Math.sin(a) * 331], [Math.cos(a) * 421, Math.sin(a) * 421]], '#fffefa', 2.5);
-      for (const rr of [338, 415]) screw(c, Math.cos(a) * rr, Math.sin(a) * rr, 1.8);
+      for (const rr of [338, 415]) screw(c, Math.cos(a) * rr, Math.sin(a) * rr, 1.8, rotation);
       c.save(); c.translate(Math.cos(a + .13) * 274, Math.sin(a + .13) * 274); c.rotate(a + .13);
       rect(c, -20, -13, 40, 26, 12, '#ddd9d0', '#bbb5a8', .7);
       glyph(c, TYPES[i % 6], 0, 0, 9, '#a6a093'); c.restore();
@@ -125,7 +127,7 @@ export default class Slots {
       line(c, [[1127 - 43 * p, 410 + 207 * p], [1134 - 43 * p, 411 + 207 * p]], '#bfb8ac', 1);
       line(c, [[1141 + 9 * p, 415 + 202 * p], [1148 + 9 * p, 415 + 202 * p]], '#bfb8ac', 1);
     }
-    pulley(c, 1134, 407, 27, rotation * 3);
+    pulley(c, 1134, 407, 27, rotation * 3, 24);
     lamp(c, 1165, 420, event?.status === 'failed' ? RED : null, 3);
   }
 

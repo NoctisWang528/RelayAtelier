@@ -57,7 +57,7 @@ RELAY_SCENES=loom,factory RELAY_CAPTURE_DIR=output/loom-factory npm run capture:
 - **共享界面**。场景名称、导航、键位和来源模式在 `src/app.mjs`，样式在 `src/style.css`。变更场景名称时同时检查按钮、状态栏、读屏名称以及已保存的场景标识。
 - **桌面与浏览器两种入口**。前端新增数据需求须兼顾 preload 和本地 Web 服务。真实来源只经后端标准化后进入窗口。[运行架构](docs/ARCHITECTURE.md)
 - **新增 Agent Hook**。在 `server/hooks/providers.mjs` 中登记宿主 ID、配置目标与读写规则。使用独立配置目录测试与已有 Hook 共存、并发安装和精确撤销。[Hook 规范](docs/HOOKS.md)
-- **桌面图标**。以 `assets/logo/relay-atelier.png` 为 1024 像素原稿。源码窗口和 macOS Dock 使用 `assets/icon.png`，macOS 构建读取 `assets/icon.icns`，Windows 构建读取 `assets/icon.ico`。更换图标时一并校验 `assets/Relay.iconset/` 的普通与 Retina 尺寸，以及小尺寸 ICO 是否可辨。
+- **桌面图标**。macOS 版将 1024 像素的飞轮原稿等比缩至 824 像素，居中放在 1024 像素透明画布上。用该画布生成 `assets/Relay.iconset/` 的普通和 Retina 尺寸，再执行 `iconutil -c icns assets/Relay.iconset -o assets/icon.icns`。开发窗口在 Dock 中使用 iconset 的 1024 像素 PNG，安装版使用包内 ICNS。README 使用 `assets/logo/` 的原稿，Windows 构建使用 `assets/icon.ico`。
 
 ## 版本与发布
 

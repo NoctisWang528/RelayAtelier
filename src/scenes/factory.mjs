@@ -166,37 +166,136 @@ function feeder(ctx, at, p, halfWidth) {
   ctx.restore();
 }
 
-function link(ctx,a,b,w,tip){
-  const length=Math.hypot(b[0]-a[0],b[1]-a[1]);
-  ctx.save();ctx.translate(...a);ctx.rotate(Math.atan2(b[1]-a[1],b[0]-a[0]));
-  const g=ctx.createLinearGradient(0,-w/2,0,w/2);
-  g.addColorStop(0,'#b4b0a6');g.addColorStop(.18,'#dedbd2');g.addColorStop(.42,'#fffefa');g.addColorStop(.66,'#eeeae1');g.addColorStop(1,'#aaa69c');
-  ctx.beginPath();ctx.moveTo(0,-w/2);ctx.lineTo(length,-tip/2);
-  ctx.bezierCurveTo(length+tip*.23,-tip/2,length+tip*.23,tip/2,length,tip/2);
-  ctx.lineTo(0,w/2);ctx.bezierCurveTo(-w*.19,w/2,-w*.19,-w/2,0,-w/2);ctx.closePath();
-  ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='#aaa69c';ctx.lineWidth=1;ctx.stroke();
-  line(ctx,[[5,w*.16],[length-5,tip*.16]],'#fffefa',1.1);
-  for(const u of [.2,.72]){
-    const x=length*u,r=lerp(w,tip,u)/2;
-    ctx.beginPath();ctx.moveTo(x,-r);ctx.bezierCurveTo(x+7,-r*.55,x+7,r*.55,x,r);
-    ctx.strokeStyle='#c3bfb5';ctx.lineWidth=.8;ctx.stroke();
+// Turned sections share a centreline. Only the crown above the thrust race rotates.
+function pedestal(ctx, base, heightScale, yaw) {
+  ctx.save();
+  ctx.translate(...base);
+  ctx.scale(1,heightScale);
+  ctx.translate(6,0);
+  function section(top, bottom, upperRadius, lowerRadius) {
+    const enamel=ctx.createLinearGradient(-lowerRadius,0,lowerRadius,0);
+    enamel.addColorStop(0,'#dedbd2'); enamel.addColorStop(.26,'#fffefa');
+    enamel.addColorStop(.58,'#f2efe7'); enamel.addColorStop(.86,'#c2bdb2');
+    enamel.addColorStop(1,'#ada89d');
+    ctx.beginPath();
+    ctx.moveTo(-upperRadius,top);
+    ctx.ellipse(0,top,upperRadius,upperRadius*.27,0,Math.PI,2*Math.PI);
+    ctx.lineTo(lowerRadius,bottom);
+    ctx.ellipse(0,bottom,lowerRadius,lowerRadius*.27,0,0,Math.PI);
+    ctx.closePath();
+    ctx.fillStyle=enamel; ctx.fill(); ctx.strokeStyle='#aaa59a'; ctx.lineWidth=1; ctx.stroke();
+    ellipse(ctx,0,top,upperRadius,upperRadius*.27,ENAMEL,'#b7b2a7');
   }
+  section(120,127,66,67);
+  for (const a of [.32,1.5,2.7]) screw(ctx,61*Math.cos(a),120+16*Math.sin(a),2.4);
+  section(72,118,52,55);
+  section(68,72,53,53);
+  section(60,65,50,51);
+  section(30,59,39,48);
+  // Small keyway on the rotating skirt tracks the plane of the shoulder and elbow.
+  const keyX=22*(1-2*yaw);
+  line(ctx,[[keyX,40],[keyX*1.18,69]],'#bbb6aa',1);
   ctx.restore();
 }
-function joint(ctx,p,r){
-  const body=ctx.createRadialGradient(p[0]-r*.4,p[1]-r*.5,1,p[0],p[1],r*1.3);
-  body.addColorStop(0,'#fffefa');body.addColorStop(.55,'#f2efe7');body.addColorStop(1,'#b4afa4');
-  ellipse(ctx,p[0]-r*.12,p[1]-r*.08,r,r*1.08,body,'#b3afa5');
-  ctx.save();ctx.translate(p[0]+r*.43,p[1]+r*.25);ctx.rotate(.46);
-  ellipse(ctx,0,0,r*.62,r*.77,'#d4d0c6','#aaa69c');
-  ellipse(ctx,0,0,r*.51,r*.65,'#bab7ae','#e8e5dd',.8);
-  ellipse(ctx,0,0,r*.22,r*.29,'#e5e2d9','#969389',.8);
-  ellipse(ctx,-r*.035,-r*.04,r*.09,r*.13,'#aaa79c','#f5f2eb',.6);
-  if(r>20)for(let i=0;i<6;i++){
-    const a=i*Math.PI/3;ellipse(ctx,Math.cos(a)*r*.43,Math.sin(a)*r*.55,1.1,1.5,'#f8f6ef','#a6a297',.5);
-  }
+
+// The fixed cheeks straddle the shoulder drive and flare into the turntable.
+function shoulderCheek(ctx, base, axis, side, foot) {
+  ctx.save(); ctx.translate(base[0]+side*axis.x*17,base[1]+side*axis.y*17);
+  const enamel=ctx.createLinearGradient(-20,-16,24,foot);
+  enamel.addColorStop(0,side<0 ? '#c9c5ba' : '#fffdf7');
+  enamel.addColorStop(.6,side<0 ? '#bcb7ab' : '#e9e5da'); enamel.addColorStop(1,'#c2bcae');
+  ctx.beginPath(); ctx.moveTo(-25,foot-4);
+  ctx.bezierCurveTo(-22,foot-13,-17,12,-18,1);
+  ctx.bezierCurveTo(-19,-10,-12,-19,-2,-20);
+  ctx.bezierCurveTo(10,-21,18,-14,19,-2);
+  ctx.quadraticCurveTo(20,13,26,foot-5);
+  ctx.quadraticCurveTo(27,foot,21,foot+1);
+  ctx.quadraticCurveTo(-1,foot+4,-23,foot);
+  ctx.closePath(); ctx.fillStyle=enamel; ctx.fill();
+  ctx.strokeStyle='#aba699'; ctx.lineWidth=1; ctx.stroke(); ctx.restore();
+}
+
+function upperCasting(ctx, base, angle, length, yaw) {
+  ctx.save(); ctx.translate(...base); ctx.rotate(angle);
+  // The gearbox swells on one side of the pivot, with a relieved waist behind the fork.
+  const finish=ctx.createLinearGradient(0,-25,0,33);
+  finish.addColorStop(0,'#c4bfb2'); finish.addColorStop(.17,'#fdfbf3');
+  finish.addColorStop(.42,'#f2efe5'); finish.addColorStop(.79,'#d3cec2');
+  finish.addColorStop(1,'#aaa496');
+  ctx.beginPath(); ctx.moveTo(-24,-12);
+  ctx.quadraticCurveTo(-22,-27,-5,-28);
+  ctx.bezierCurveTo(14,-29,25,-25,37,-22);
+  ctx.lineTo(length-32,-13);
+  ctx.quadraticCurveTo(length-20,-11,length-11,-16);
+  ctx.bezierCurveTo(length+7,-24,length+20,-13,length+18,2);
+  ctx.quadraticCurveTo(length+16,18,length+1,19);
+  ctx.quadraticCurveTo(length-10,19,length-19,10);
+  ctx.bezierCurveTo(length-30,1,length-42,4,length*.49,10);
+  ctx.bezierCurveTo(length*.37,15,36,31,17,34);
+  ctx.bezierCurveTo(0,37,-16,30,-22,17);
+  ctx.quadraticCurveTo(-29,3,-24,-12);
+  ctx.closePath(); ctx.fillStyle=finish; ctx.fill();
+  ctx.fillStyle=`rgba(107,100,86,${.16*(1-yaw)})`; ctx.fill();
+  ctx.strokeStyle='#a9a396'; ctx.lineWidth=1; ctx.stroke();
+
+  // Recessed gearcase lid follows the broad shoulder pocket and lifts off at the two screws.
+  const lip=ctx.createLinearGradient(0,-20,0,18);
+  lip.addColorStop(0,'#c4beb1'); lip.addColorStop(.19,'#f1ede4'); lip.addColorStop(1,'#ded9cd');
+  ctx.beginPath(); ctx.moveTo(16,-18);
+  ctx.quadraticCurveTo(22,-21,36,-17); ctx.lineTo(length*.66,-9);
+  ctx.quadraticCurveTo(length*.72,-6,length*.66,-2);
+  ctx.lineTo(49,4); ctx.quadraticCurveTo(40,6,32,14);
+  ctx.quadraticCurveTo(21,24,12,18); ctx.quadraticCurveTo(6,13,8,3);
+  ctx.lineTo(11,-11); ctx.quadraticCurveTo(12,-16,16,-18); ctx.closePath();
+  ctx.fillStyle=lip; ctx.fill(); ctx.strokeStyle='#a39c8d'; ctx.lineWidth=1.3; ctx.stroke();
+  screw(ctx,18,12,2); screw(ctx,length*.63,-6,1.6);
   ctx.restore();
 }
+
+function forearm(ctx, elbow, target, angle) {
+  const dx=target[0]-elbow[0], dy=target[1]-elbow[1], length=Math.hypot(dx,dy);
+  ctx.save(); ctx.translate(...elbow); ctx.rotate(angle);
+  const light=(.6*dy-.8*dx)/length, crest=.5+light*.32;
+  const finish=ctx.createLinearGradient(0,-15,0,15);
+  finish.addColorStop(0,`hsl(43 11% ${77-10*light}%)`);
+  finish.addColorStop(crest-.15,'#e9e5db'); finish.addColorStop(crest,'#fffef9');
+  finish.addColorStop(crest+.15,'#e9e5db');
+  finish.addColorStop(1,`hsl(43 11% ${77+10*light}%)`);
+  ctx.beginPath(); ctx.moveTo(0,-15);
+  ctx.bezierCurveTo(length*.35,-15,length*.77,-7,length,-7.5);
+  ctx.quadraticCurveTo(length+4,0,length,7.5);
+  ctx.bezierCurveTo(length*.66,7,length*.28,15,0,15);
+  ctx.bezierCurveTo(-18,15,-18,-15,0,-15);
+  ctx.closePath(); ctx.fillStyle=finish; ctx.fill(); ctx.strokeStyle='#aaa599'; ctx.lineWidth=1; ctx.stroke();
+  ctx.restore();
+}
+
+// The forearm pivots between the integral far lug and this offset front ear.
+function elbowEar(ctx, elbow, axis, angle) {
+  ctx.save(); ctx.translate(elbow[0]+axis.x*11,elbow[1]+axis.y*11); ctx.rotate(angle);
+  const enamel=ctx.createLinearGradient(0,-17,0,17);
+  enamel.addColorStop(0,'#fdfaf2'); enamel.addColorStop(.65,'#e3ded2'); enamel.addColorStop(1,'#bcb6a8');
+  ctx.beginPath(); ctx.moveTo(-32,-10); ctx.quadraticCurveTo(-21,-9,-12,-15);
+  ctx.bezierCurveTo(2,-24,18,-15,18,-2); ctx.quadraticCurveTo(19,12,7,16);
+  ctx.quadraticCurveTo(-2,20,-13,13); ctx.lineTo(-30,3);
+  ctx.quadraticCurveTo(-36,-1,-32,-10); ctx.closePath();
+  ctx.fillStyle=enamel; ctx.fill(); ctx.strokeStyle='#b1a99b'; ctx.lineWidth=1; ctx.stroke();
+  ctx.restore();
+}
+
+function pin(ctx, pivot, radius, axis, reach) {
+  // Only the lip beyond the outer cheek is exposed.
+  const projection=Math.hypot(axis.x,axis.y), end=reach*projection, rx=radius*axis.depth;
+  ctx.save(); ctx.translate(...pivot); ctx.rotate(axis.tilt);
+  ctx.beginPath(); ctx.ellipse(end-4*projection,0,rx,radius,0,Math.PI/2,3*Math.PI/2);
+  ctx.lineTo(end,-radius); ctx.ellipse(end,0,rx,radius,0,-Math.PI/2,Math.PI/2);
+  ctx.closePath(); ctx.fillStyle='#b7b0a2'; ctx.fill(); ctx.strokeStyle='#a49e90'; ctx.lineWidth=.8; ctx.stroke();
+  ellipse(ctx,end,0,rx,radius,'#ded9cd','#a8a293',.8);
+  ellipse(ctx,end,0,rx*.56,radius*.56,'#b4ad9e','#f4f0e7',.8);
+  ellipse(ctx,end,0,rx*.23,radius*.23,'#e9e5da','#9d9789',.6);
+  ctx.restore();
+}
+
 const HEAD_HEIGHT = 28;
 function wrist(progress, home, feed, drop, height, compact) {
   const pickY = feed[1]-height-HEAD_HEIGHT, releaseY = drop[1]-height-HEAD_HEIGHT;
@@ -210,6 +309,8 @@ function wrist(progress, home, feed, drop, height, compact) {
     const [end,x,y] = stops[i];
     if (progress>end) continue;
     const [start,ax,ay] = stops[i-1], u = ease((progress-start)/(end-start));
+    // The empty tool rises before swinging over the feed, then approaches vertically.
+    if (start===0) return [lerp(ax,x,u*u),lerp(ay,y,1-(1-u)**2)];
     return [lerp(ax,x,u),lerp(ay,y,u)];
   }
   return home;
@@ -217,14 +318,28 @@ function wrist(progress, home, feed, drop, height, compact) {
 
 function gripper(ctx, target, p, jaw, carried, packedHeight) {
   ctx.save(); ctx.translate(...target);
-  cylinder(ctx,-6,6,12,14);
-  // Coordinates here are relative to the bottom of the pickup plate.
+  // The slides translate along the belt axis, keeping both pad faces parallel.
   ctx.translate(0,HEAD_HEIGHT);
-  solid(ctx,p,-jaw-4,-jaw,-8,8,-19,0,ENAMEL,'#d3cfc4','#aaa598',EDGE);
+  const finger = side => {
+    const inner=side*jaw, d=side<0 ? inner-4 : inner;
+    solid(ctx,p,d,d+4,-8,8,-19,0,ENAMEL,'#d3cfc4','#aaa598',EDGE);
+    // The far pad faces the viewer. Only the thin edge of the near pad is visible.
+    const pad=side<0
+      ? [p(inner,-8,-18),p(inner,8,-18),p(inner,8,-4),p(inner,-8,-4)]
+      : [p(inner,-8,-18),p(inner+1,-8,-18),p(inner+1,-8,-4),p(inner,-8,-4)];
+    polygon(ctx,pad,'#a39f92');
+    if (side>0) screw(ctx,...p(d+4,0,-8),1.3);
+    solid(ctx,p,d-1,d+5,-8,8,0,5,ENAMEL,'#d2cec4','#b6b1a5',EDGE);
+  };
+  finger(-1);
   if (carried) parcel(ctx,carried,[0,packedHeight],p,0,false);
-  solid(ctx,p,-jaw,jaw,-4,4,-2,1,'#eeeae1','#c0bbaf','#aaa598',EDGE);
-  solid(ctx,p,-10,10,-20,20,0,7,ENAMEL,'#d2cfc5','#b6b1a6',EDGE);
-  solid(ctx,p,jaw,jaw+4,-8,8,-19,0,ENAMEL,'#d3cfc4','#aaa598',EDGE);
+  for (const w of [-5,5]) {
+    solid(ctx,p,-jaw-1,jaw+1,w-2,w+2,2,5,'#e6e2d7','#989387','#a19c90','#9c9689');
+  }
+  solid(ctx,p,-9,9,-12,12,1,8,ENAMEL,'#dfdbd1','#bdb8ac','#b1ac9f');
+  cylinder(ctx,-8,-12,16,4);
+  cylinder(ctx,-5,-21,10,10);
+  finger(1);
   ctx.restore();
 }
 function hose(ctx,draw,width){
@@ -428,7 +543,11 @@ export default class Factory {
   const point=(u,v=0)=>[x0+beltDX*u+lerp(65,95,amount)*v,beltY+beltDY*u-lerp(16,33,amount)*v];
   const project=deckProjection(point), dropU=lerp(.235,.306,amount)+.012*compact;
   const exitU=Math.min((height-14-beltY)/beltDY,(1200-20-x0)/beltDX), runout=exitU-dropU;
-  const base=[lerp(366,460,amount),lerp(354,150,amount)+58*compact];
+  const upper=133-23*compact, mountY=lerp(354,150,amount)+58*compact;
+  // Allow for the fully raised fork and its flange below the actual navigation rail.
+  const shoulderDrop=clamp((state.viewport?.navigation?.bottom??0)+upper+32-mountY,0,24);
+  const base=[lerp(366,460,amount),mountY+shoulderDrop];
+  const pedestalScale=1-.39*compact-shoulderDrop/120; // Foot stays at the same deck height.
   const drop=point(dropU), feed=point(dropU-.032*compact,1.7);
   feed[1]-=38;
   const home=[drop[0],lerp(280,166,amount)+55*compact];
@@ -441,14 +560,10 @@ export default class Factory {
   const latest=records.reduce((a,r)=>!a||r.changed>=a.changed?r:a,null);
   // Draw from the side feeder across the far rail to the near guard.
   ctx.save();ctx.translate(0,-130*amount);machinery(ctx,latest,travel*BELT_LENGTH,queued.length,amount);ctx.restore();
-  // Lower the compact shoulder onto a shorter pedestal at the same bolted foot.
-  ctx.save();ctx.translate(...base);ctx.scale(1,1-compact*.39);ctx.translate(-366,-354);
-  ellipse(ctx,374,485,68,22,'#c5c1b6');ellipse(ctx,374,478,68,21,ENAMEL);
-  cylinder(ctx,319,425,110,53);
-  for(const x of [330,338,397,405,413])line(ctx,[[x,432],[x,470]],x<390?'#fdfbf5':'#c8c4b9',.9);
-  cylinder(ctx,321,424,106,10);cylinder(ctx,325,400,97,28);cylinder(ctx,330,396,87,9);cylinder(ctx,332,378,84,25);
-  for(const a of [.1,.8,2.1,3.1])screw(ctx,374+Math.cos(a)*59,478+Math.sin(a)*17,3);
-  ctx.restore();
+  const packedHeight=job ? job.size[2]*job.packed : 0;
+  const target=job ? wrist(progress,home,feed,drop,packedHeight,compact) : home;
+  const yaw=ease((target[0]-drop[0])/(feed[0]-drop[0]));
+  pedestal(ctx,base,pedestalScale,yaw);
   feeder(ctx,feed,project,lerp(49,69,amount));
   const staged=queued[0];
   if (staged && (staged===job || progress>=.30)) {
@@ -464,23 +579,31 @@ export default class Factory {
     const r=outgoing[i], distance=travel-r.releaseU;
     parcel(ctx,r,point(dropU+distance),project,ease(distance/.065));
   }
-  const packedHeight=job ? job.size[2]*job.packed : 0;
-  const target=job ? wrist(progress,home,feed,drop,packedHeight,compact) : home;
-  const upper=133-23*compact, forearm=157;
+  const forearmLength=157;
   const dx=target[0]-base[0], dy=target[1]-base[1], reach=Math.hypot(dx,dy);
-  const bend=Math.acos(clamp((upper*upper+reach*reach-forearm*forearm)/(2*upper*reach),-1,1));
+  const bend=Math.acos(clamp((upper*upper+reach*reach-forearmLength*forearmLength)/(2*upper*reach),-1,1));
   const angle=Math.atan2(dy,dx)+bend;
   const elbow=[base[0]+upper*Math.cos(angle),base[1]+upper*Math.sin(angle)];
-  ctx.save();ctx.translate(...base);
-  const fairing=ctx.createLinearGradient(-39,-20,42,27);fairing.addColorStop(0,'#cecabf');fairing.addColorStop(.25,'#fffefa');fairing.addColorStop(.65,'#f6f3eb');fairing.addColorStop(1,'#b6b1a5');
-  ctx.beginPath();ctx.moveTo(-32,-22);ctx.bezierCurveTo(-13,-49,29,-38,39,-10);ctx.bezierCurveTo(49,11,36,37,23,44);ctx.bezierCurveTo(9,51,-18,45,-29,34);ctx.bezierCurveTo(-40,24,-45,-3,-32,-22);ctx.closePath();ctx.fillStyle=fairing;ctx.fill();ctx.strokeStyle='#ada99e';ctx.lineWidth=1.2;ctx.stroke();
-  ctx.beginPath();ctx.moveTo(-31,-17);ctx.bezierCurveTo(-37,7,-25,33,-13,37);ctx.strokeStyle='#c5c0b5';ctx.lineWidth=1;ctx.stroke();ctx.restore();
-  link(ctx,base,elbow,43,31);link(ctx,elbow,target,26,18);
-  for(const [p,r] of [[base,34],[elbow,24],[target,13]])joint(ctx,p,r);
+  const wristAngle=Math.atan2(target[1]-elbow[1],target[0]-elbow[0]);
+  // The three transverse shafts share an axis while the vertical tool flange stays level.
+  const nx=lerp(.66,-.57,yaw), ny=.36;
+  const axis={x:nx, y:ny, depth:Math.sqrt(1-nx*nx-ny*ny), tilt:Math.atan2(ny,nx)};
+  const foot=3+33*pedestalScale;
+  shoulderCheek(ctx,base,axis,-1,foot);
+  upperCasting(ctx,base,angle,upper,yaw);
+  shoulderCheek(ctx,base,axis,1,foot);
+  pin(ctx,base,13,axis,21);
+  forearm(ctx,elbow,target,wristAngle);
+  elbowEar(ctx,elbow,axis,angle);
+  pin(ctx,elbow,11,axis,17);
   const carried=job && progress>=PICK && progress<RELEASE ? job : null;
   const closure=ease((progress-.15)/.05)*(1-ease((progress-RELEASE)/.06));
   const jaw=lerp(32,job ? job.size[1]*job.packed/2 : 32,closure);
   gripper(ctx,target,project,jaw,carried,packedHeight);
+  const wristShell=ctx.createLinearGradient(target[0]-12,target[1]-8,target[0]+9,target[1]+9);
+  wristShell.addColorStop(0,'#fffdf6'); wristShell.addColorStop(1,'#c6c0b4');
+  ellipse(ctx,...target,12.5,12,wristShell,'#aea79a');
+  pin(ctx,target,6,axis,9);
   beltRail(ctx,point,-1);
   if (!state.reducedMotion) mechanicalEffects(ctx,records,t,point,amount,height,travel,runout,exitU);
   ctx.save();ctx.translate(0,height-1100);

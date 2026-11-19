@@ -101,11 +101,11 @@ export default class Roulette {
       c.beginPath(); c.moveTo(-7, 0); c.lineTo(3, -14); c.lineTo(9, 0); c.lineTo(-1, 14); c.closePath();
       c.fillStyle = '#fefdf9'; c.fill(); c.strokeStyle = '#c7c0b3'; c.lineWidth = .8; c.stroke(); screw(c, 1, 0, 1.6); c.restore();
     }
-    c.save(); c.translate(CX, CY); c.rotate(rotation);
+    c.save(); c.translate(CX, CY);
     circle(c, 0, 0, 289, '#eeebe4', '#bfb9ae', .8);
     // Twenty-four physical pockets: a tool plaque over a recessed radial ball slot.
     for (let i = 0; i < 24; i++) {
-      const a = i * STEP - STEP / 2, b = a + STEP;
+      const pocket = rotation + i * STEP, a = pocket - STEP / 2, b = a + STEP;
       c.beginPath(); c.arc(0, 0, 287, a, b); c.arc(0, 0, 245, b, a, true); c.closePath();
       c.fillStyle = i % 2 ? '#f8f6f0' : '#f0ede6'; c.fill(); c.strokeStyle = '#c6c0b4'; c.lineWidth = .6; c.stroke();
       const inset = c.createRadialGradient(0, 0, 218, 0, 0, 245);
@@ -114,7 +114,7 @@ export default class Roulette {
       line(c, [[Math.cos(a) * 216, Math.sin(a) * 216], [Math.cos(a) * 245, Math.sin(a) * 245]], '#8e8a7f', 3);
       line(c, [[Math.cos(a) * 216, Math.sin(a) * 216], [Math.cos(a) * 245, Math.sin(a) * 245]], '#fdfbf6', 1);
       circle(c, Math.cos(a) * 245, Math.sin(a) * 245, 2, '#827e73');
-      c.save(); c.translate(Math.cos(i * STEP) * 268, Math.sin(i * STEP) * 268); c.rotate(i * STEP + Math.PI / 2);
+      c.save(); c.translate(Math.cos(pocket) * 268, Math.sin(pocket) * 268); c.rotate(pocket + Math.PI / 2);
       glyph(c, TYPES[i % TYPES.length], 0, 0, 16.5, '#706c62'); c.restore();
     }
     const center = c.createRadialGradient(-60, -90, 20, 0, 0, 218);
@@ -122,22 +122,28 @@ export default class Roulette {
     circle(c, 0, 0, 216, center, '#c7c1b6', .8);
     for (const rr of [194, 161, 128, 95]) circle(c, 0, 0, rr, null, '#ded9d0', .55);
     for (let i = 0; i < 24; i++) {
-      const a = i * STEP;
+      const a = rotation + i * STEP;
       line(c, [[Math.cos(a) * 111, Math.sin(a) * 111], [Math.cos(a) * 212, Math.sin(a) * 212]], '#ddd7ce', .55);
     }
     circle(c, 0, 0, 103, '#f6f3eb', null);
-    for (let i = 0; i < 36; i++) circle(c, Math.cos(i * TAU / 36) * 98, Math.sin(i * TAU / 36) * 98, .85, '#c7beab');
+    for (let i = 0; i < 36; i++) {
+      const a = rotation + i * TAU / 36;
+      circle(c, Math.cos(a) * 98, Math.sin(a) * 98, .85, '#c7beab');
+    }
     circle(c, 1, 4, 82, '#cfcbc1'); circle(c, 0, 0, 81, '#eeebe4', '#c9c2b6', .8);
     circle(c, -1, -1, 80, null, '#fffefa', 1.5);
     for (let i = 0; i < 4; i++) {
-      const a = Math.PI / 4 + i * Math.PI / 2;
+      const a = rotation + Math.PI / 4 + i * Math.PI / 2;
       line(c, [[Math.cos(a) * 21, Math.sin(a) * 21], [Math.cos(a) * 69, Math.sin(a) * 69]], '#c3bcae', 9);
       line(c, [[Math.cos(a) * 21, Math.sin(a) * 21], [Math.cos(a) * 69, Math.sin(a) * 69]], '#fffefa', 6);
       circle(c, Math.cos(a) * 69, Math.sin(a) * 69, 9.5, '#fffefa', '#c9c2b7', .8);
     }
     circle(c, 0, 0, 33, '#f7f4ed', '#d2cbc0');
-    for (let i = 0; i < 12; i++) screw(c, Math.cos(i * TAU / 12) * 30, Math.sin(i * TAU / 12) * 30, 1.1);
-    circle(c, 0, 0, 26, '#fffefa', '#bfb8ab', .8); screw(c, 0, 0, 7);
+    for (let i = 0; i < 12; i++) {
+      const a = rotation + i * TAU / 12;
+      screw(c, Math.cos(a) * 30, Math.sin(a) * 30, 1.1, rotation);
+    }
+    circle(c, 0, 0, 26, '#fffefa', '#bfb8ab', .8); screw(c, 0, 0, 7, rotation);
     c.restore();
   }
 
@@ -252,11 +258,7 @@ export default class Roulette {
     line(c, [[beltStart, 997], [887, 997]], '#bdb5a7', 4.5); line(c, [[beltStart, 997], [887, 997]], '#fffefa', 2.5);
     c.setLineDash([1, 3]); c.lineDashOffset = -rotation * 25;
     line(c, [[beltStart, 972], [887, 972]], '#aaa292', 2); line(c, [[beltStart, 1000], [887, 1000]], '#aaa292', 2); c.restore();
-    pulley(c, beltStart, 986, 13, -rotation * 5); pulley(c, 887, 986, 18, -rotation * 5); pulley(c, 912, 1018, 29, rotation * 4);
-    for (let i = 0; i < 28; i++) {
-      const a = i * TAU / 28 + rotation * 4;
-      line(c, [[912 + Math.cos(a) * 25, 1018 + Math.sin(a) * 25], [912 + Math.cos(a) * 29, 1018 + Math.sin(a) * 29]], '#c7beae', 1.5);
-    }
+    pulley(c, beltStart, 986, 13, -rotation * 5); pulley(c, 887, 986, 18, -rotation * 5); pulley(c, 912, 1018, 29, rotation * 4, 28);
     c.save(); c.translate(beltStart - 17, 969); c.rotate(-.36); metal(c, -42, -5, 83, 10, 2);
     for (let x = -37; x < 40; x += 5) line(c, [[x, -3], [x, 3]], '#bab1a2', .7); c.restore();
   }

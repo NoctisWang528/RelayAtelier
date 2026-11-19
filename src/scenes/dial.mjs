@@ -13,10 +13,27 @@ export default class Westworld{
   const toolSlots=new Array(32);for(const e of this.tools.values())toolSlots[e.slot]=e;
   dial(c,-963,cy,1523,this.angle,{tools:toolSlots,color:hot?col:null,openCenter:true});
   // The inner contact harness grows from observed tool bays; idle stays empty.
-  if(this.tools.size){c.save();c.beginPath();c.arc(-963,cy,1523-411,0,TAU);c.clip();for(let j=0;j<6;j++){c.beginPath();c.arc(-963,cy,1063+j*5,-.72,.72);c.strokeStyle=j%2?'#a39f92':'#c9c3b4';c.lineWidth=.65;c.stroke();}
-   for(const e of this.tools.values()){const a=e.slot*TAU/32+this.angle;if(Math.cos(a)<.75)continue;const n=Math.min(10,Math.max(2,e.calls)),co=Math.cos(a),si=Math.sin(a),x=-963+co*1110,y=cy+si*1110;
-    for(let k=0;k<n;k++){const yy=y+(k-(n-1)/2)*8,xx=x-3-Math.abs(k-(n-1)/2)*.6;const route=roundedRoute([[xx-64,yy],[xx-50,yy],[xx-50,yy+15],[xx-22,yy+15],[xx-22,yy],[xx,yy]],5);line(c,route.points,k%3===0?'#a5a194':'#c8c3b6',.65);circle(c,xx-64,yy,1.8,P.paper,'#c0baab',.6);circle(c,xx,yy,1.1,k===n-1&&hot?'#bca443':'#a7a192');}
-   }c.restore();}
+  if(this.tools.size){
+   const innerTrack=1047, trackPitch=12, span=5*trackPitch;
+   c.save();c.translate(-963,cy);
+   for(let j=0;j<6;j++)circle(c,0,0,innerTrack+j*trackPitch,null,j%2?'#a39f92':'#c9c3b4',.65);
+   for(const e of this.tools.values()){
+    const bayAngle=e.slot*TAU/32+this.angle, count=Math.min(10,Math.max(2,e.calls));
+    for(let k=0;k<count;k++){
+     // Fan the wires by angle so both pads land on their track radius.
+     const offset=(k-(count-1)/2)*8/innerTrack;
+     c.save();c.rotate(bayAngle+offset);c.translate(innerTrack,0);
+     c.beginPath();c.moveTo(0,0);
+     c.arcTo(12,0,22,14,4);c.arcTo(22,14,span-22,14,4);
+     c.arcTo(span-22,14,span-12,0,4);c.arcTo(span-12,0,span,0,4);c.lineTo(span,0);
+     c.strokeStyle=k%3===0?'#8d877b':'#a8a194';c.lineWidth=1;c.stroke();
+     circle(c,0,0,2,P.paper,'#918a7b',.85);
+     circle(c,span,0,1.65,k===count-1&&hot?'#bca443':'#918a7b');
+     c.restore();
+    }
+   }
+   c.restore();
+  }
   // In the reference the needle is engraved into the scale; no floating box.
   line(c,[[542,cy],[560,cy]],'#8f8b82',1.2);
   for(const y of [100,height*.28,cy,height*.72,height-45]){const x=-2308+Math.sqrt(3115**2-(y-(cy-35))**2);clampJoint(c,x,y,false);}

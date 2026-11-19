@@ -10,7 +10,16 @@ try{
  await window.screenshot({path:`${out}/desktop-live.png`});
  await window.locator('#pin').click();assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isAlwaysOnTop()),true);await window.locator('#pin').click();check('native always-on-top toggles and reads back');
  const security=await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];const p=w.webContents.getLastWebPreferences();return{sandbox:p.sandbox,contextIsolation:p.contextIsolation,nodeIntegration:p.nodeIntegration,url:w.webContents.getURL()};});assert.equal(security.sandbox,true);assert.equal(security.contextIsolation,true);assert.equal(security.nodeIntegration,false);check('sandboxed renderer with local file entry',security);
- await window.locator('[data-mode=demo]').click();await window.locator('[data-scene=dial]').click();await window.waitForTimeout(3200);await window.screenshot({path:`${out}/desktop-dial.png`});
+ await window.locator('[data-mode=demo]').click();await window.locator('[data-scene=dial]').click();
+ const tally=await window.evaluate(()=>relayDiagnostics().delivered);
+ await app.evaluate(({BrowserWindow})=>{
+   const w=BrowserWindow.getAllWindows()[0];
+   if(!w.isVisible()||w.isMinimized())throw Error('Expected a visible window for the hide notification check');
+   w.emit('hide');
+ });
+ await window.waitForFunction(n=>relayDiagnostics().windowVisible&&relayDiagnostics().delivered>=n+2,tally);
+ check('visible window keeps animating after a stale hide notification');
+ await window.waitForTimeout(1200);await window.screenshot({path:`${out}/desktop-dial.png`});
  await window.locator('[data-scene=dataflow]').click();await window.waitForTimeout(3200);await window.screenshot({path:`${out}/desktop-dataflow.png`});check('desktop tool-driven scenes render');
  for (const scene of ['factory','loom']) {
   await window.locator('[data-scene='+scene+']').click();

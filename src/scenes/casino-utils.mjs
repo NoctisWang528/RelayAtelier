@@ -83,19 +83,28 @@ export function lamp(c, x, y, color = null, radius = 4) {
   circle(c, x - radius * .25, y - radius * .3, radius * .25, '#ffffffa0');
 }
 
-export function pulley(c, x, y, r, angle = 0) {
-  c.save(); c.translate(x, y); c.rotate(angle);
+export function pulley(c, x, y, radius, angle = 0, teeth = 0) {
+  c.save(); c.translate(x, y);
+  // Scale the small belt pulleys as a unit so their hubs leave room for spokes.
+  const r = Math.max(22, radius);
+  c.scale(radius / r, radius / r);
+  const bevel = c.createLinearGradient(-r * .7, -r * .7, r * .7, r * .7);
+  bevel.addColorStop(0, '#fffefa'); bevel.addColorStop(1, '#d7d1c5');
   circle(c, 1, 3, r + 2, '#d9d5cb', '#c4bfb4', .8);
-  circle(c, 0, 0, r, '#fcfbf8', '#bdb8ac', .9);
+  circle(c, 0, 0, r, bevel, '#bdb8ac', .9);
   circle(c, 0, 0, r - 4, '#eeeae2', '#d3cec3', .8);
   circle(c, 0, 0, r - 8, null, '#fff', 2);
   for (let i = 0; i < 6; i++) {
-    const a = i * TAU / 6;
+    const a = angle + i * TAU / 6;
     const p = [[Math.cos(a) * 5, Math.sin(a) * 5], [Math.cos(a) * (r - 7), Math.sin(a) * (r - 7)]];
     line(c, p, '#c6c0b4', 5); line(c, p, '#fffefa', 3);
-    screw(c, Math.cos(a) * (r - 10), Math.sin(a) * (r - 10), 1.4);
+    screw(c, Math.cos(a) * (r - 10), Math.sin(a) * (r - 10), 1.4, angle);
   }
-  circle(c, 0, 0, 7, P.white, P.edge); screw(c, 0, 0, 2.4); c.restore();
+  for (let i = 0; i < teeth; i++) {
+    const a = angle + i * TAU / teeth, co = Math.cos(a), si = Math.sin(a);
+    line(c, [[co * (r - 4), si * (r - 4)], [co * r, si * r]], '#c7beae', 1.5);
+  }
+  circle(c, 0, 0, 7, P.white, P.edge); screw(c, 0, 0, 2.4, angle); c.restore();
 }
 
 export function tube(c, points, width = 14) {

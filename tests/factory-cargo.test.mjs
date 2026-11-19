@@ -61,8 +61,8 @@ describe('Factory Canvas', () => {
       window.testFactory = () => new Factory();
       window.fixture = demoEvent;
       // Observe the actual Canvas paints, retaining just the parts under test.
-      window.drawFactory = (scene,time,height,reducedMotion=false) => {
-        const canvas = new OffscreenCanvas(1200,height), ctx = canvas.getContext('2d');
+      window.drawFactory = (scene,time,height,reducedMotion=false,nav=null) => {
+        const canvas = new OffscreenCanvas(1200,height), ctx = canvas.getContext('2d',{willReadFrequently:!!nav});
         const parts = [], joints = [], slats = [];
         const colors = {'#e9e5db':'lid','#817c71':'tape','#aaa598':'jaw','#fffcf6':'sticker'};
         let vertices = [], order = 0;
@@ -102,19 +102,32 @@ describe('Factory Canvas', () => {
           stroke();
         };
         ctx.ellipse = (x,y,rx,ry,...rest) => {
-          if ([34,24,13].includes(rx) && ry===rx*1.08) {
-            joints.push({x:x+rx*.12,y:y+rx*.08,top:y-ry-.5});
+          // The three projecting pin flanges are drawn in their pivot's local frame.
+          if ([13,11,6].includes(ry) && rest[1]===Math.PI/2 && rest[2]===3*Math.PI/2) {
+            const m=ctx.getTransform();
+            joints.push({x:m.e,y:m.f});
           }
           ellipse(x,y,rx,ry,...rest);
         };
-        scene.render(ctx,time,0,{viewport:{height},reducedMotion});
+        scene.render(ctx,time,0,{viewport:{height,navigation:nav},reducedMotion});
         const tape = parts.find(p => p.kind==='tape');
         let ink;
         if (tape) {
           const x=tape.points.reduce((s,p)=>s+p.x/4,0), y=tape.points.reduce((s,p)=>s+p.y/4,0);
           ink = [...ctx.getImageData(Math.round(x),Math.round(y),1,1).data];
         }
-        return {parts,joints,slats,ink};
+        let navInk;
+        if (nav) {
+          // Compare the arm's horizontal sweep over the stationary cabinet and deck.
+          const xs=joints.map(j=>j.x);
+          const left=Math.max(nav.x,Math.floor(Math.min(...xs)-50));
+          const right=Math.min(nav.x+nav.width,Math.ceil(Math.max(...xs)+50));
+          const band=[left,0,right-left,nav.bottom+8];
+          const actual=ctx.getImageData(...band).data, parked=nav.parked.getImageData(...band).data;
+          const changed=actual.findIndex((v,i)=>v!==parked[i]);
+          navInk=changed<0 ? null : [left+Math.floor(changed/4)%(right-left),Math.floor(changed/(4*(right-left)))];
+        }
+        return {parts,joints,slats,ink,navInk};
       };
       // Request the CPU raster path for repeatable pixel comparisons across complete frames.
       window.pixelContext = height => new OffscreenCanvas(1200,height).getContext('2d',{willReadFrequently:true});
@@ -341,29 +354,35 @@ describe('Factory Canvas', () => {
     }
   });
 
-  it('keeps the moving elbow below the compact mode rail and the forearm at its designed reach', async () => {
-    const {navBottom,measurements} = await page.evaluate(() => {
+  it('keeps the whole moving arm below the short window’s navigation rail and preserves link reach', async () => {
+    await page.setViewportSize({width:1180,height:620});
+    const measurements = await page.evaluate(() => {
       const canvas=document.querySelector('.stage-canvas').getBoundingClientRect();
       const height=Math.max(620,1200*canvas.height/canvas.width);
       const scale=Math.min(canvas.width/1200,canvas.height/height);
       const top=canvas.top+(canvas.height-height*scale)/2;
-      const navBottom=(document.querySelector('.mode-rail').getBoundingClientRect().bottom-top)/scale;
+      const rail=document.querySelector('.mode-rail').getBoundingClientRect();
+      const left=canvas.left+(canvas.width-1200*scale)/2;
+      const nav={x:Math.floor((rail.left-left)/scale), width:Math.ceil(rail.width/scale),
+        bottom:Math.ceil((rail.bottom-top)/scale)};
       const measurements=[];
       for (const h of [620,Math.round(height),760,860,1044,1100]) {
+        nav.parked=pixelContext(h);
+        testFactory().render(nav.parked,0,0,{viewport:{height:h,navigation:nav}});
         for (const i of [0,2]) {
           const scene=testFactory(); scene.onEvent({...fixture(i),visualCount:4},0);
           const [r]=scene.calls.values();
           for (const u of [0,.09,.16,.20,.29,.34,.38,.50,.56,.66,.76,1]) {
-            const {joints:[base,elbow,wrist]}=drawFactory(scene,u*r.duration,h);
-            measurements.push({h,top:elbow.top,upper:Math.hypot(elbow.x-base.x,elbow.y-base.y),
+            const {joints:[base,elbow,wrist],navInk}=drawFactory(scene,u*r.duration,h,false,nav);
+            measurements.push({h,navInk,upper:Math.hypot(elbow.x-base.x,elbow.y-base.y),
               forearm:Math.hypot(wrist.x-elbow.x,wrist.y-elbow.y)});
           }
         }
       }
-      return {navBottom,measurements};
+      return measurements;
     });
-    for (const {h,top,upper,forearm} of measurements) {
-      assert.ok(top>navBottom+8,`elbow at ${top}, navigation ends at ${navBottom} (height ${h})`);
+    for (const {h,navInk,upper,forearm} of measurements) {
+      assert.equal(navInk,null,`paint at ${navInk} inside navigation clearance at height ${h}`);
       assert.ok(Math.abs(forearm-157)<.01);
       if (h>=1044) assert.ok(Math.abs(upper-133)<.01);
     }

@@ -23,8 +23,14 @@ const snap=async name=>page.screenshot({path:path.join(out,name+'.png')});
 let report;
 try{
  await page.goto(app.url,{waitUntil:'domcontentloaded'});await wait(()=>window.relayDiagnostics?.().connected);await page.waitForTimeout(1200);assert.equal((await diag()).counts.total,0);check('Live starts empty without manufactured calls');
- await append([record('single')]);await wait(()=>window.relayDiagnostics().counts.active===1);await page.waitForTimeout(320);await snap('dial-start');
- const first=await page.locator('#stage').screenshot();await page.waitForTimeout(500);const second=await page.locator('#stage').screenshot();assert.notEqual(createHash('sha256').update(first).digest('hex'),createHash('sha256').update(second).digest('hex'));check('single start drives actual canvas motion');
+ await append([record('single')]);await wait(()=>window.relayDiagnostics().counts.active===1 && window.relayDiagnostics().delivered>=1);
+ // Sample the short pulse before saving the full-window evidence capture.
+ const stageDigest=()=>page.locator('#stage').evaluate(async canvas=>{
+   const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);
+   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',pixels.data)));
+ });
+ const first=await stageDigest();await page.waitForTimeout(220);assert.notDeepEqual(await stageDigest(),first);
+ check('single start drives actual canvas motion');await snap('dial-start');
  await append([record('single','completed')]);await wait(()=>window.relayDiagnostics().counts.completed===1);assert.equal((await diag()).counts.total,1);await snap('dial-complete');check('start and completion paired as one call');
  const tools=['Read','Bash','Grep','WebFetch','Task','Edit'];
  const entries=[];for(let i=0;i<20;i++){const agent=i%3===0?'worker-a':i%3===1?'worker-b':null;entries.push(record(`parallel-${i}`,'started',tools[i%6],agent));if(i!==19)entries.push(record(`parallel-${i}`,i===4?'failed':i===8?'unknown':'completed',tools[i%6],agent));}

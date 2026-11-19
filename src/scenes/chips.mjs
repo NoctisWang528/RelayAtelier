@@ -156,8 +156,6 @@ function landscape(ctx,scene,t,state,height){
   const age=Math.max(0,t-latest.born),feeding=!state.reducedMotion&&age<.28,spring=state.reducedMotion?1:1-Math.exp(-8*Math.max(0,age-.28))*Math.cos(12*Math.max(0,age-.28));
   const x=feeding?dealerX:lerp(dealerX,playX,spring),y=feeding?lerp(dealerBottom+97*shoeScale,shoeCenter,ease(age/.28)):lerp(shoeCenter,playY,spring),scale=feeding?shoeScale:lerp(shoeScale,bedScale,clamp(spring));
   ctx.save();if(feeding){ctx.beginPath();ctx.rect(trackX,trackY+7,166*shoeScale,height-trackY-16);ctx.clip();}ctx.translate(x,y);ctx.scale(scale,scale);playingCard(ctx,latest,0,0,feeding?142:lerp(142,176,clamp(spring)),feeding?194:lerp(194,264,clamp(spring)),feeding?0:(1-spring)*.16,true);ctx.restore();
-  const flashAt=Math.max(latest.changedAt,latest.born+.58),flash=state.reducedMotion||t<flashAt?0:1-clamp((t-flashAt)/.65);
-  if(flash>0){ctx.save();ctx.globalAlpha=flash*.6;for(let i=0;i<22;i++){const a=i*2.399,x=playX+Math.sin(a)*60,y=playY-100-(1-flash)*70;line(ctx,[[playX+(x-playX)*.4,playY-80],[x,y-Math.cos(a)*20]],i%4?'#cfb866':'#716c5a',.65);}ctx.restore();}
  }else{ctx.save();ctx.translate(playX,playY);ctx.scale(bedScale,bedScale);box(ctx,-88,-132,176,264,8,'#f6f3eb','#d4cbb9');label(ctx,'等待真实工具调用',0,5,12,MUTED,'center');ctx.restore();}
  const needleY=lerp(height*.48,551,portrait);panel(ctx,251,needleY,80,40);box(ctx,260,needleY+9,18,21,2,'#eeece5','#bcb4a3');for(let i=0;i<4;i++)line(ctx,[[287,needleY+9+i*5],[317,needleY+9+i*5]],'#c5bcaa',1.3);polygon(ctx,[[233,needleY+20],[248,needleY+15],[248,needleY+25]],'#514b3e');
  handTray(ctx,handY,handHeight,height);
@@ -193,7 +191,6 @@ export default class Chips{
    const x=feeding?DEALER_X:lerp(DEALER_X,PLAY_X,spring),y=feeding?lerp(510,959,ease(age/.28)):lerp(959,560,spring);
    ctx.save();if(feeding){ctx.beginPath();ctx.rect(979,400,166,672);ctx.clip();}
    playingCard(ctx,latest,x,y,feeding?142:lerp(142,176,clamp(spring)),feeding?194:lerp(194,264,clamp(spring)),feeding?0:(1-spring)*.16,true);ctx.restore();
-   const flashAt=Math.max(latest.changedAt,latest.born+.58),flash=state.reducedMotion||t<flashAt?0:1-clamp((t-flashAt)/.65);if(flash>0){ctx.save();ctx.globalAlpha=flash*.7;const p=1-flash;for(let i=0;i<26;i++){const a=i*2.399,xx=PLAY_X+Math.sin(a)*65*(1+p),yy=450-p*130-Math.cos(a)*25;line(ctx,[[PLAY_X+(xx-PLAY_X)*.5,470],[xx,yy]],i%4===0?'#716c5a':'#cfb866',.65);}ctx.restore();}
   }else{box(ctx,552,428,176,264,8,'#f6f3eb','#d4cbb9');label(ctx,'等待真实工具调用',PLAY_X,565,12,MUTED,'center');}
   panel(ctx,251,551,80,40);box(ctx,260,560,18,21,2,'#eeece5','#bcb4a3');for(let i=0;i<4;i++)line(ctx,[[287,560+i*5],[317,560+i*5]],'#c5bcaa',1.3);polygon(ctx,[[233,571],[248,566],[248,576]],'#514b3e');
   pipe(ctx,[[331,571],[402,571]],5);
